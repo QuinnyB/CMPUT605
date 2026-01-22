@@ -46,7 +46,7 @@ try:
         print("Opening Gripper...")
         packetHandler.write4ByteTxRx(portHandler, HAND_ID, ADDR_GOAL_POSITION, 2650)
         time.sleep(2)
-
+# Press Ctrl + C to stop 
 except KeyboardInterrupt:
     # Disable torque before closing so you can move the arm by hand
     for m_id in MOTOR_IDS:
