@@ -1,0 +1,144 @@
+import time
+import threading
+import matplotlib.pyplot as plt
+from collections import deque
+from dynamixel_sdk import *
+import math
+
+# --- Configuration ---
+DEVICE_NAME = 'COM13'  # Update this to your port!
+BAUDRATE = 1000000
+PROTOCOL_VERSION = 2.0
+
+ADDR_TORQUE_ENABLE    = 64
+ADDR_GOAL_POSITION    = 116
+ADDR_PROFILE_VELOCITY = 112
+ADDR_PRESENT_LOAD = 126
+ADDR_PRESENT_VELOCITY = 128
+ADDR_PRESENT_POSITION = 132
+
+MOTOR_IDS            = [1, 2, 4, 5]
+INITIAL_POSITIONS    = {1: 2048, 2: 1980, 4: 2048, 5: 2780}
+MOTOR_VELO = 20
+HAND_ID = 5
+HAND_POS_1 = 1750
+HAND_POS_2 = 2650
+WAIT_TIME = math.ceil(((HAND_POS_2 - HAND_POS_1) / (4096 * 0.229 * MOTOR_VELO)) * 60)
+WINDOW_SIZE = 200 # How many points to show on the screen
+
+pos_history = deque([2048] * WINDOW_SIZE, maxlen=WINDOW_SIZE)
+vel_history = deque([0] * WINDOW_SIZE, maxlen=WINDOW_SIZE)
+load_history = deque([0] * WINDOW_SIZE, maxlen=WINDOW_SIZE)
+running = True # Control flag to stop threads
+
+# --- SDK Setup ---
+portHandler = PortHandler(DEVICE_NAME)
+packetHandler = PacketHandler(PROTOCOL_VERSION)
+
+if not portHandler.openPort() or not portHandler.setBaudRate(BAUDRATE):
+    print("Failed to open port. Check connection!")
+    quit()
+
+for m_id in MOTOR_IDS:
+    # Enable Torque
+    packetHandler.write1ByteTxRx(portHandler, m_id, ADDR_TORQUE_ENABLE, 1)
+    # Set Speed (Profile Velocity)
+    packetHandler.write4ByteTxRx(portHandler, m_id, ADDR_PROFILE_VELOCITY, MOTOR_VELO)
+    # Move to Initial Position
+    packetHandler.write4ByteTxRx(portHandler, m_id, ADDR_GOAL_POSITION, INITIAL_POSITIONS[m_id])
+
+print("Robot Ready.")
+
+# --- Background Movement Thread ---
+def move_logic():
+    """This function runs in the background to cycle the hand."""
+    global running
+    while running:
+        # Move to Close
+        packetHandler.write4ByteTxRx(portHandler, HAND_ID, ADDR_GOAL_POSITION, HAND_POS_1)
+        time.sleep(WAIT_TIME)
+        
+        # Move to Open
+        packetHandler.write4ByteTxRx(portHandler, HAND_ID, ADDR_GOAL_POSITION, HAND_POS_2)
+        time.sleep(WAIT_TIME)
+
+# Start the movement thread
+mover = threading.Thread(target=move_logic, daemon=True)
+mover.start()
+
+# --- Live Plotting Setup ---
+plt.ion()
+fig, axs = plt.subplots(2, 1, figsize=(10, 6))
+
+# Axis 1: Present Position (top plot, left axis)
+axs[0].set_xlabel('Time (Samples)')
+axs[0].set_ylabel('Motor Position (0-4095)', color='blue')
+line_pos, = axs[0].plot(list(pos_history), color='blue', label='Position')
+axs[0].tick_params(axis='y', labelcolor='blue')
+axs[0].set_ylim(0, 4095)
+
+# Axis 2: Present Velocity (top plot, right axis)
+axs_left = axs[0].twinx() # This creates the second Y-axis
+axs_left.set_ylabel('Velocity', color='green')
+line_vel, = axs_left.plot(list(vel_history), color='green', alpha=0.6, label='Velocity')
+axs_left.tick_params(axis='y', labelcolor='green')
+axs_left.set_ylim(-100, 100)
+
+# Axis 3: Present Load (Bottom plot)
+axs[1].set_ylabel('Raw Load (0-2000)', color='red')
+line_load, = axs[1].plot(list(load_history), color='red', alpha=0.6, label='Load')
+axs[1].tick_params(axis='y', labelcolor='red')
+axs[1].set_ylim(-1000, 1000) 
+
+fig.tight_layout()
+axs[0].grid(True, alpha=0.3)
+plt.title(f"Motor {HAND_ID}: Position vs. Load")
+
+print("Starting live plot. Close the window to stop.")
+
+# --- Main Loop (Plotting) ---
+try:
+    while plt.fignum_exists(fig.number):
+        # Read the current position from the motor
+        pos, _, _ = packetHandler.read4ByteTxRx(portHandler, HAND_ID, ADDR_PRESENT_POSITION)
+
+        # Read the current velocity from the motor
+        vel, _, _ = packetHandler.read4ByteTxRx(portHandler, HAND_ID, ADDR_PRESENT_VELOCITY)
+        print(vel)
+
+        # Read the load
+        load, _, _ = packetHandler.read2ByteTxRx(portHandler, HAND_ID, ADDR_PRESENT_LOAD)
+        
+        if pos is not None: pos_history.append(pos)
+        if vel is not None: vel_history.append(vel)
+        if load is not None: 
+            if load > 32767:
+                load_signed = load - 65536
+            else:
+                load_signed = load
+            load_history.append(load_signed)
+
+        # Update lines
+        line_pos.set_ydata(list(pos_history))
+        line_vel.set_ydata(list(vel_history))
+        line_load.set_ydata(list(load_history))
+
+        # Refresh the plot
+        fig.canvas.draw()
+        fig.canvas.flush_events()
+        
+        time.sleep(0.01) # ~50Hz update rate
+
+except KeyboardInterrupt:
+    pass
+
+# --- Cleanup ---
+print("\nShutting down...")
+running = False
+# Disable torque before closing so you can move the arm by hand
+for m_id in MOTOR_IDS:
+    packetHandler.write1ByteTxRx(portHandler, m_id, ADDR_TORQUE_ENABLE, 0)
+portHandler.closePort()
+print("Communication Closed.")
+portHandler.closePort()
+plt.close()
