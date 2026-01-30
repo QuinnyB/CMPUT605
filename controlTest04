@@ -10,7 +10,7 @@ import time
 
 # --- Configuration -----------------------------------------------------------------------
 # Motor communication:
-DEVICE_NAME = 'COM13'  # Update this to your port!
+DEVICE_NAME = 'COM15'  # Update this to your port!
 BAUDRATE = 1000000
 PROTOCOL_VERSION = 2.0
 ADDR_TORQUE_ENABLE    = 64
@@ -34,13 +34,18 @@ WAIT_TIME = math.ceil(((POS_RANGE) / (4096 * 0.229 * MOTOR_VELO)) * 60)
 MAX_LOAD = 300      # Max expected absolute load for normalization
 NUM_POS_BINS = 10   # For creating feature vector
 NUM_VEL_BINS = 5    # For creating feature vector
-
+GAMMA = 0.1         # Discount factor 
+ALPHA = 0.1         # Learning rate
+w = np.zeros(NUM_POS_BINS * NUM_VEL_BINS)  # Weight vector initialization
+x_prev = np.zeros(NUM_POS_BINS * NUM_VEL_BINS, dtype=int)  # Previous feature vector
 
 # Plotting:
 WINDOW_SIZE = 200 # How many points to show on the screen
 pos_history = deque([2048] * WINDOW_SIZE, maxlen=WINDOW_SIZE)
 vel_history = deque([0] * WINDOW_SIZE, maxlen=WINDOW_SIZE)
 load_history = deque([0] * WINDOW_SIZE, maxlen=WINDOW_SIZE)
+norm_load_history = deque([0] * WINDOW_SIZE, maxlen=WINDOW_SIZE)
+pred_history = deque([0.5] * WINDOW_SIZE, maxlen=WINDOW_SIZE)
 
 # Misc:
 avg_update_time = 0
@@ -48,7 +53,7 @@ loop_count = 0
 is_paused = False  # Global pause flag
 running = True # Control flag to stop threads
 
-# --- SDK Setup ---------------------------------------------------------------------------
+# --- Communitcation and Motor Setup ------------------------------------------------------
 portHandler = PortHandler(DEVICE_NAME)
 packetHandler = PacketHandler(PROTOCOL_VERSION)
 
@@ -122,9 +127,10 @@ def featurize(pos, vel):
     pos_bin = bin(pos_norm, NUM_POS_BINS)
     vel_bin = bin(vel_norm, NUM_VEL_BINS)
     # Create feature vector
-    X = np.zeros(NUM_POS_BINS * NUM_VEL_BINS, dtype=int)
-    X[pos_bin * NUM_VEL_BINS + vel_bin] = 1
-    return X
+    x = np.zeros(NUM_POS_BINS * NUM_VEL_BINS, dtype=int)
+    feature_idx = pos_bin * NUM_VEL_BINS + vel_bin
+    x[feature_idx] = 1
+    return x
 
 # Kayboard listener for pausing/resuming
 def on_press(key):
@@ -159,9 +165,9 @@ listener.start()
 mover = threading.Thread(target=move_logic, daemon=True)
 mover.start()
 
-# --- Live Plotting Setup ---
+# --- Live Plotting Setup -----------------------------------------------------------------
 plt.ion()
-fig, axs = plt.subplots(2, 1, figsize=(10, 6))
+fig, axs = plt.subplots(3, 1, figsize=(10, 6))
 
 # Axis 1: Present Position (top plot, left axis)
 axs[0].set_xlabel('Time (Samples)')
@@ -171,17 +177,24 @@ axs[0].tick_params(axis='y', labelcolor='blue')
 axs[0].set_ylim(0, 4095)
 
 # Axis 2: Present Velocity (top plot, right axis)
-axs_left = axs[0].twinx() # This creates the second Y-axis
-axs_left.set_ylabel('Velocity', color='green')
-line_vel, = axs_left.plot(list(vel_history), color='green', alpha=0.6, label='Velocity')
-axs_left.tick_params(axis='y', labelcolor='green')
-axs_left.set_ylim(-100, 100)
+axs0_left = axs[0].twinx() # This creates the second Y-axis
+axs0_left.set_ylabel('Velocity', color='green')
+line_vel, = axs0_left.plot(list(vel_history), color='green', alpha=0.6, label='Velocity')
+axs0_left.tick_params(axis='y', labelcolor='green')
+axs0_left.set_ylim(-100, 100)
 
-# Axis 3: Present Load (Bottom plot)
+# Axis 3: Present Load (middle plot)
 axs[1].set_ylabel('Raw Load (0-2000)', color='red')
 line_load, = axs[1].plot(list(load_history), color='red', alpha=0.6, label='Load')
 axs[1].tick_params(axis='y', labelcolor='red')
 axs[1].set_ylim(-400, 400) 
+
+# Axis 4: Normalized load and prediction (Bottom plot)
+axs[2].set_ylabel('Normalized Load / Prediction', color='purple')
+line_c, = axs[2].plot(list(norm_load_history), color='orange', alpha=0.6, label='Normalized Load')
+line_pred, = axs[2].plot(list(pred_history), color='purple', alpha=0.6, label='Prediction')
+axs[2].tick_params(axis='y', labelcolor='purple')
+axs[2].set_ylim(-0.5, 1.5)
 
 fig.tight_layout()
 axs[0].grid(True, alpha=0.3)
@@ -207,28 +220,38 @@ try:
             pos_history.append(pos)  
             vel_history.append(vel)  
             load_history.append(load)
-        
-        # Update lines
+
+        # Covert pos and vel into feature vector
+        x = featurize(pos, vel)
+
+        # Normalize load 
+        c = normalize(load, -MAX_LOAD, MAX_LOAD)
+        norm_load_history.append(c)
+
+        # Calculate delta
+        delta = c + GAMMA*w@x - w@x_prev
+ 
+        # Update W
+        w = w + ALPHA*delta*x_prev
+
+        # Store state
+        x_prev = x
+
+        # Calculate prediction
+        pred = w@x
+        # print(pred)
+        pred_history.append(pred)
+
+        # Update plot lines
         line_pos.set_ydata(list(pos_history))
         line_vel.set_ydata(list(vel_history))
         line_load.set_ydata(list(load_history))
+        line_c.set_ydata(list(norm_load_history))
+        line_pred.set_ydata(list(pred_history))
 
         # Refresh the plot
         fig.canvas.draw()
         fig.canvas.flush_events()
-
-        # Covert pos and vel into feature vector
-        X = featurize(pos, vel)
-
-        # Normalize load 
-        C = normalize(load, -MAX_LOAD, MAX_LOAD)
-
-        # Calculate delta
-
- 
-        # Update W
-
-        # Store state
         
         time.sleep(0.01) # Small delay to control update rate
         end_time = time.perf_counter()
@@ -237,6 +260,7 @@ try:
         loop_count += 1
         if loop_count % 50 == 0:
             print(f"Avg Loop Time: {avg_update_time:.4f} sec")
+            print(w)
 
 except KeyboardInterrupt:
     pass
