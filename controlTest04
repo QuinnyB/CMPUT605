@@ -4,12 +4,15 @@ import matplotlib.pyplot as plt
 from collections import deque
 from dynamixel_sdk import *
 import math
+import numpy as np
+from pynput import keyboard
+import time
 
-# --- Configuration ---
-DEVICE_NAME = 'COM15'  # Update this to your port!
+# --- Configuration -----------------------------------------------------------------------
+# Motor communication:
+DEVICE_NAME = 'COM13'  # Update this to your port!
 BAUDRATE = 1000000
 PROTOCOL_VERSION = 2.0
-
 ADDR_TORQUE_ENABLE    = 64
 ADDR_GOAL_POSITION    = 116
 ADDR_PROFILE_VELOCITY = 112
@@ -17,6 +20,7 @@ ADDR_PRESENT_LOAD = 126
 ADDR_PRESENT_VELOCITY = 128
 ADDR_PRESENT_POSITION = 132
 
+# Motor movement:
 MOTOR_IDS            = [1, 2, 4, 5]
 INITIAL_POSITIONS    = {1: 2048, 2: 1980, 4: 2048, 5: 2780}
 MOTOR_VELO = 20
@@ -25,14 +29,26 @@ HAND_POS_1 = 1750
 HAND_POS_2 = 2650
 POS_RANGE = HAND_POS_2 - HAND_POS_1
 WAIT_TIME = math.ceil(((POS_RANGE) / (4096 * 0.229 * MOTOR_VELO)) * 60)
-WINDOW_SIZE = 200 # How many points to show on the screen
 
+# Learning parameters:
+MAX_LOAD = 300      # Max expected absolute load for normalization
+NUM_POS_BINS = 10   # For creating feature vector
+NUM_VEL_BINS = 5    # For creating feature vector
+
+
+# Plotting:
+WINDOW_SIZE = 200 # How many points to show on the screen
 pos_history = deque([2048] * WINDOW_SIZE, maxlen=WINDOW_SIZE)
 vel_history = deque([0] * WINDOW_SIZE, maxlen=WINDOW_SIZE)
 load_history = deque([0] * WINDOW_SIZE, maxlen=WINDOW_SIZE)
+
+# Misc:
+avg_update_time = 0
+loop_count = 0
+is_paused = False  # Global pause flag
 running = True # Control flag to stop threads
 
-# --- SDK Setup ---
+# --- SDK Setup ---------------------------------------------------------------------------
 portHandler = PortHandler(DEVICE_NAME)
 packetHandler = PacketHandler(PROTOCOL_VERSION)
 
@@ -50,33 +66,37 @@ for m_id in MOTOR_IDS:
 
 print("Robot Ready.")
 
-# --- Function Definitions ---
+# --- Function Definitions ----------------------------------------------------------------
+# Signed Conversions:
+def to_signed_32(val):
+    if val > 2147483647 :  # If greater than (2^31 - 1)
+        return val - 4294967296  # Subtract 2^32
+    else:   return val
+def to_signed_16(val):
+    if val > 32767:  # If greater than (2^15 - 1)
+        return val - 65536  # Subtract 2^16
+    else:   return val
+
 # Read position, velocity, and load from motor:
 def read_from_motor(motor_id):
     # Read the current position from the motor
     pos, _, _ = packetHandler.read4ByteTxRx(portHandler, motor_id, ADDR_PRESENT_POSITION)
     # Read the current velocity from the motor
-    vel_raw, _, _ = packetHandler.read4ByteTxRx(portHandler, motor_id, ADDR_PRESENT_VELOCITY)
+    vel, _, _ = packetHandler.read4ByteTxRx(portHandler, motor_id, ADDR_PRESENT_VELOCITY)
     # Read the load
     load, _, _ = packetHandler.read2ByteTxRx(portHandler, motor_id, ADDR_PRESENT_LOAD)
     
     if pos is None:
         return None, None, None
-    if vel_raw is not None:
+    if vel is not None:
         # Convert unsigned 32-bit to signed 32-bit
-        if vel_raw > 2147483647:  # This is (2^31 - 1)
-            vel_signed = vel_raw - 4294967296  # Subtract 2^32
-        else:
-            vel_signed = vel_raw        
+        vel_signed = to_signed_32(vel)       
     if load is not None: 
         # Convert unsigned 16-bit to signed 16-bit
-        if load > 32767:    # This is (2^15 - 1)
-            load_signed = load - 65536  # Subtract 2^16
-        else:
-            load_signed = load
+        load_signed = to_signed_16(load)    
     return pos, vel_signed, load_signed
 
-#
+# Normalize function
 def normalize(value, min_val, max_val):
     if value < min_val:
         value = min_val
@@ -84,31 +104,58 @@ def normalize(value, min_val, max_val):
         value = max_val
     return (value - min_val) / (max_val - min_val)
 
-# Convert position and velocity into feature vector
+# Binning function
+def bin(value, num_bins):
+    bin_index = math.ceil(value * num_bins) - 1
+    if bin_index < 0:
+        bin_index = 0
+    if bin_index >= num_bins:
+        bin_index = num_bins - 1
+    return bin_index
+
+# Convert position and velocity into feature vector X
 def featurize(pos, vel):
-    # Normalize position to [0, 1]
+    # Normalize position and velocity to [0, 1]
     pos_norm = normalize(pos, HAND_POS_1, HAND_POS_2)
-    # Normalize velocity to [0, 1]
-    vel_norm = normalize(vel, -MOTOR_VELO, MOTOR_VELO)  # Assuming velocity range
-    # TO DO - convert pos and vel into binned array and then flatten
-    X = []
+    vel_norm = normalize(vel, -MOTOR_VELO, MOTOR_VELO)
+    # Determine bin indices
+    pos_bin = bin(pos_norm, NUM_POS_BINS)
+    vel_bin = bin(vel_norm, NUM_VEL_BINS)
+    # Create feature vector
+    X = np.zeros(NUM_POS_BINS * NUM_VEL_BINS, dtype=int)
+    X[pos_bin * NUM_VEL_BINS + vel_bin] = 1
     return X
 
+# Kayboard listener for pausing/resuming
+def on_press(key):
+    global is_paused
+    if key == keyboard.Key.space:
+        is_paused = not is_paused
+        status = "PAUSED" if is_paused else "RESUMED"
+        print(f"\n*** {status} ***")
+        if is_paused:
+            # Tell motor to stop exactly where it is immediately
+            pos, _, _ = packetHandler.read4ByteTxRx(portHandler, HAND_ID, ADDR_PRESENT_POSITION)
+            packetHandler.write4ByteTxRx(portHandler, HAND_ID, ADDR_GOAL_POSITION, pos)
 
 # Background thread to move the gripper:
 def move_logic():
     # This function runs in the background to cycle the hand.
     global running
     while running:
+        if is_paused:
+            time.sleep(0.1)
+            continue
         # Move to Close
         packetHandler.write4ByteTxRx(portHandler, HAND_ID, ADDR_GOAL_POSITION, HAND_POS_1)
         time.sleep(WAIT_TIME)
-        
         # Move to Open
         packetHandler.write4ByteTxRx(portHandler, HAND_ID, ADDR_GOAL_POSITION, HAND_POS_2)
         time.sleep(WAIT_TIME)
 
-# Start the movement thread
+# Start the threads
+listener = keyboard.Listener(on_press=on_press)
+listener.start()
 mover = threading.Thread(target=move_logic, daemon=True)
 mover.start()
 
@@ -134,7 +181,7 @@ axs_left.set_ylim(-100, 100)
 axs[1].set_ylabel('Raw Load (0-2000)', color='red')
 line_load, = axs[1].plot(list(load_history), color='red', alpha=0.6, label='Load')
 axs[1].tick_params(axis='y', labelcolor='red')
-axs[1].set_ylim(-500, 500) 
+axs[1].set_ylim(-400, 400) 
 
 fig.tight_layout()
 axs[0].grid(True, alpha=0.3)
@@ -142,12 +189,20 @@ plt.title(f"Motor {HAND_ID}: Position, Velocity, and Load")
 
 print("Starting live plot. Close the window to stop.")
 
-# --- Main Loop (Plotting) ---
+# -----------------------------------------------------------------------------------------
+# --- Main Loop  --------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------
 try:
     while plt.fignum_exists(fig.number):
+        start_time = time.perf_counter()
+        if is_paused:
+            # Still flush events - allows the window to process the "Close" click
+            fig.canvas.flush_events()
+            time.sleep(0.1)
+            continue
+
         # Read actual position, velocity, and load from the motor
         pos, vel, load = read_from_motor(HAND_ID)
-        print(vel)
         if pos is not None:
             pos_history.append(pos)  
             vel_history.append(vel)  
@@ -163,17 +218,25 @@ try:
         fig.canvas.flush_events()
 
         # Covert pos and vel into feature vector
+        X = featurize(pos, vel)
 
         # Normalize load 
+        C = normalize(load, -MAX_LOAD, MAX_LOAD)
 
         # Calculate delta
 
+ 
         # Update W
 
         # Store state
-
         
         time.sleep(0.01) # Small delay to control update rate
+        end_time = time.perf_counter()
+        elapsed_time = end_time - start_time
+        avg_update_time = avg_update_time + (elapsed_time - avg_update_time) / (loop_count + 1)
+        loop_count += 1
+        if loop_count % 50 == 0:
+            print(f"Avg Loop Time: {avg_update_time:.4f} sec")
 
 except KeyboardInterrupt:
     pass
