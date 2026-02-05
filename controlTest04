@@ -10,7 +10,7 @@ import time
 
 # --- Configuration -----------------------------------------------------------------------
 # Motor communication:
-DEVICE_NAME = 'COM15'  # Update this to your port!
+DEVICE_NAME = 'COM13'  # Update this to your port!
 BAUDRATE = 1000000
 PROTOCOL_VERSION = 2.0
 ADDR_TORQUE_ENABLE    = 64
@@ -32,10 +32,13 @@ WAIT_TIME = math.ceil(((POS_RANGE) / (4096 * 0.229 * MOTOR_VELO)) * 60)
 
 # Learning parameters:
 MAX_LOAD = 300      # Max expected absolute load for normalization
+LOAD_THRESHOLD = 100  # Load threshold 
 NUM_POS_BINS = 10   # For creating feature vector
-NUM_VEL_BINS = 5    # For creating feature vector
-GAMMA = 0.1         # Discount factor 
+NUM_VEL_BINS = 20    # For creating feature vector
+GAMMA = 0.5         # Discount factor 
 ALPHA = 0.1         # Learning rate
+verifier_buffer_length = math.ceil(5*(1/(1-GAMMA)))  # Number of steps to look back at for verification
+verifier_indices = np.arange(verifier_buffer_length)    # Create an array of indices [0, 1, 2, ..., verifier_buffer_length-1]
 w = np.zeros(NUM_POS_BINS * NUM_VEL_BINS)  # Weight vector initialization
 x_prev = np.zeros(NUM_POS_BINS * NUM_VEL_BINS, dtype=int)  # Previous feature vector
 
@@ -44,8 +47,9 @@ WINDOW_SIZE = 200 # How many points to show on the screen
 pos_history = deque([2048] * WINDOW_SIZE, maxlen=WINDOW_SIZE)
 vel_history = deque([0] * WINDOW_SIZE, maxlen=WINDOW_SIZE)
 load_history = deque([0] * WINDOW_SIZE, maxlen=WINDOW_SIZE)
-norm_load_history = deque([0] * WINDOW_SIZE, maxlen=WINDOW_SIZE)
-pred_history = deque([0.5] * WINDOW_SIZE, maxlen=WINDOW_SIZE)
+cumulant_history = deque([0] * WINDOW_SIZE, maxlen=WINDOW_SIZE)
+pred_history = deque([0] * WINDOW_SIZE, maxlen=WINDOW_SIZE)
+verifier_history = deque([np.nan] * WINDOW_SIZE, maxlen=WINDOW_SIZE)
 
 # Misc:
 avg_update_time = 0
@@ -132,6 +136,12 @@ def featurize(pos, vel):
     x[feature_idx] = 1
     return x
 
+def get_cumulant(load):
+    # Convert load into signal of interest (cumulant)
+    # c = normalize(load, -MAX_LOAD, MAX_LOAD)
+    c = 1 if abs(load) > LOAD_THRESHOLD else 0
+    return c
+
 # Kayboard listener for pausing/resuming
 def on_press(key):
     global is_paused
@@ -190,9 +200,10 @@ axs[1].tick_params(axis='y', labelcolor='red')
 axs[1].set_ylim(-400, 400) 
 
 # Axis 4: Normalized load and prediction (Bottom plot)
-axs[2].set_ylabel('Normalized Load / Prediction', color='purple')
-line_c, = axs[2].plot(list(norm_load_history), color='orange', alpha=0.6, label='Normalized Load')
+axs[2].set_ylabel('Cumulant Signal / Prediction', color='purple')
+line_c, = axs[2].plot(list(cumulant_history), color='orange', alpha=0.6, label='Cumulant Signal')
 line_pred, = axs[2].plot(list(pred_history), color='purple', alpha=0.6, label='Prediction')
+line_verifier, = axs[2].plot(list(verifier_history), color='brown', alpha=0.6, label='Verifier')
 axs[2].tick_params(axis='y', labelcolor='purple')
 axs[2].set_ylim(-0.5, 1.5)
 
@@ -224,9 +235,9 @@ try:
         # Covert pos and vel into feature vector
         x = featurize(pos, vel)
 
-        # Normalize load 
-        c = normalize(load, -MAX_LOAD, MAX_LOAD)
-        norm_load_history.append(c)
+        # Convert load into signal of interest (cumulant)
+        c = get_cumulant(load)
+        cumulant_history.append(c)
 
         # Calculate delta
         delta = c + GAMMA*w@x - w@x_prev
@@ -238,16 +249,16 @@ try:
         x_prev = x
 
         # Calculate prediction
-        pred = w@x
-        # print(pred)
-        pred_history.append(pred)
+        pred = w@x * (1-GAMMA)
+        pred_history.append(pred) # This might be updating the wrong index, need to think about it more
 
         # Update plot lines
         line_pos.set_ydata(list(pos_history))
         line_vel.set_ydata(list(vel_history))
         line_load.set_ydata(list(load_history))
-        line_c.set_ydata(list(norm_load_history))
+        line_c.set_ydata(list(cumulant_history))
         line_pred.set_ydata(list(pred_history))
+        
 
         # Refresh the plot
         fig.canvas.draw()
@@ -258,9 +269,19 @@ try:
         elapsed_time = end_time - start_time
         avg_update_time = avg_update_time + (elapsed_time - avg_update_time) / (loop_count + 1)
         loop_count += 1
-        if loop_count % 50 == 0:
-            print(f"Avg Loop Time: {avg_update_time:.4f} sec")
-            print(w)
+        # if loop_count % 50 == 0:
+        #     print(f"Avg Loop Time: {avg_update_time:.4f} sec")
+        #     print(w)
+
+        if loop_count > verifier_buffer_length:
+            # First push a nan onto the end of verifier history
+            verifier_history.append(np.nan)
+            # Compute expected prediction for verifier_buffer_length steps in the past:
+            verifier_buffer = list(cumulant_history)[-verifier_buffer_length:]
+            expected_pred = np.sum(verifier_buffer * (GAMMA ** verifier_indices)) * (1-GAMMA)
+            verifier_history[-(verifier_buffer_length+1)] = expected_pred
+            line_verifier.set_ydata(list(verifier_history))
+
 
 except KeyboardInterrupt:
     pass
