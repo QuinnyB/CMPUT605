@@ -7,7 +7,7 @@ from pynput import keyboard
 from collections import deque
 from dynamixel_sdk import *
 from dataclasses import dataclass
-from robotModuleFunctions import *
+from helperFunctions import *
 
 # --- Configuration -----------------------------------------------------------------------
 # Motor communication:

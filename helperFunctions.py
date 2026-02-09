@@ -1,4 +1,3 @@
-import time
 import matplotlib.pyplot as plt
 from collections import deque
 from dynamixel_sdk import *
@@ -7,34 +6,17 @@ import numpy as np
 from pynput import keyboard
 
 # --- Function Definitions ----------------------------------------------------------------
+
 # Signed Conversions:
 def to_signed_32(val):
     if val > 2147483647 :  # If greater than (2^31 - 1)
         return val - 4294967296  # Subtract 2^32
     else:   return val
+    
 def to_signed_16(val):
     if val > 32767:  # If greater than (2^15 - 1)
         return val - 65536  # Subtract 2^16
     else:   return val
-
-# Read position, velocity, and load from motor:
-def read_from_motor(packetHandler, portHandler, motor_id, motorAddresses):
-    # Read the current position from the motor
-    pos, _, _ = packetHandler.read4ByteTxRx(portHandler, motor_id, motorAddresses.PRESENT_POSITION)
-    # Read the current velocity from the motor
-    vel, _, _ = packetHandler.read4ByteTxRx(portHandler, motor_id, motorAddresses.PRESENT_VELOCITY)
-    # Read the load
-    load, _, _ = packetHandler.read2ByteTxRx(portHandler, motor_id, motorAddresses.PRESENT_LOAD)
-    
-    if pos is None:
-        return None, None, None
-    if vel is not None:
-        # Convert unsigned 32-bit to signed 32-bit
-        vel_signed = to_signed_32(vel)       
-    if load is not None: 
-        # Convert unsigned 16-bit to signed 16-bit
-        load_signed = to_signed_16(load)    
-    return pos, vel_signed, load_signed
 
 # Normalize function
 def normalize(value, min_val, max_val):
