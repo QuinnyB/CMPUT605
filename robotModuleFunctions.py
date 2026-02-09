@@ -1,73 +1,65 @@
-import time
-import matplotlib.pyplot as plt
-from collections import deque
-from dynamixel_sdk import *
+"""Utility functions for robot control and learning."""
 import math
 import numpy as np
-from pynput import keyboard
 
-# --- Function Definitions ----------------------------------------------------------------
-# Signed Conversions:
+
+# --- Signed Value Conversions -------------------------------------------------------
 def to_signed_32(val):
-    if val > 2147483647 :  # If greater than (2^31 - 1)
+    """Convert unsigned 32-bit integer to signed."""
+    if val > 2147483647:  # If greater than (2^31 - 1)
         return val - 4294967296  # Subtract 2^32
-    else:   return val
+    else:
+        return val
+
+
 def to_signed_16(val):
+    """Convert unsigned 16-bit integer to signed."""
     if val > 32767:  # If greater than (2^15 - 1)
         return val - 65536  # Subtract 2^16
-    else:   return val
+    else:
+        return val
 
-# Read position, velocity, and load from motor:
-def read_from_motor(packetHandler, portHandler, motor_id, motorAddresses):
-    # Read the current position from the motor
-    pos, _, _ = packetHandler.read4ByteTxRx(portHandler, motor_id, motorAddresses.PRESENT_POSITION)
-    # Read the current velocity from the motor
-    vel, _, _ = packetHandler.read4ByteTxRx(portHandler, motor_id, motorAddresses.PRESENT_VELOCITY)
-    # Read the load
-    load, _, _ = packetHandler.read2ByteTxRx(portHandler, motor_id, motorAddresses.PRESENT_LOAD)
-    
-    if pos is None:
-        return None, None, None
-    if vel is not None:
-        # Convert unsigned 32-bit to signed 32-bit
-        vel_signed = to_signed_32(vel)       
-    if load is not None: 
-        # Convert unsigned 16-bit to signed 16-bit
-        load_signed = to_signed_16(load)    
-    return pos, vel_signed, load_signed
 
-# Normalize function
+# --- Normalization and Binning -------------------------------------------------------
 def normalize(value, min_val, max_val):
+    """
+    Normalize a value to the range [0, 1].
+    
+    Args:
+        value: Value to normalize
+        min_val: Minimum value of the range
+        max_val: Maximum value of the range
+        
+    Returns:
+        float: Normalized value in [0, 1]
+    """
+    # Clamp value to range
     if value < min_val:
         value = min_val
     if value > max_val:
         value = max_val
+    
     return (value - min_val) / (max_val - min_val)
 
-# Binning function - expects normalized value between 0 and 1
+
 def bin(value, num_bins):
+    """
+    Assign a normalized value to a bin index.
+    
+    Args:
+        value: Normalized value in [0, 1]
+        num_bins: Number of bins to quantize into
+        
+    Returns:
+        int: Bin index in range [0, num_bins-1]
+    """
     bin_index = math.ceil(value * num_bins) - 1
+    
+    # Clamp to valid range
     if bin_index < 0:
         bin_index = 0
     if bin_index >= num_bins:
         bin_index = num_bins - 1
+    
     return bin_index
 
-# Convert position and velocity into feature vector X
-def featurize(pos, vel, motorMovement, learningParams):
-    # Normalize position and velocity to [0, 1]
-    pos_norm = normalize(pos, motorMovement.HAND_POS_1, motorMovement.HAND_POS_2)
-    vel_norm = normalize(vel, -motorMovement.MOTOR_VELO, motorMovement.MOTOR_VELO)
-    # Determine bin indices
-    pos_bin = bin(pos_norm, learningParams.NUM_POS_BINS)
-    vel_bin = bin(vel_norm, learningParams.NUM_VEL_BINS)
-    # Create feature vector
-    x = np.zeros(learningParams.NUM_POS_BINS * learningParams.NUM_VEL_BINS, dtype=int)
-    feature_idx = pos_bin * learningParams.NUM_VEL_BINS + vel_bin
-    x[feature_idx] = 1
-    return x
-
-def cumulant_loadThreshold(load, load_threshold):
-    # Convert load into signal of interest (cumulant)
-    c = 1 if abs(load) > load_threshold else 0
-    return c
