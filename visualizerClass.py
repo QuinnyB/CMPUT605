@@ -50,15 +50,14 @@ class RLVisualizer:
         self.load_hist.append(load)
         self.cumulant_hist.append(cumulant)
         self.pred_hist.append(pred)
-        # self.verifier_hist.append(verifier)
+        self.verifier_hist.append(verifier)
 
     def update_verifier(self, verifier_buffer_length, gamma):
-        self.verifier_hist.append(np.nan)
         verifier_indices = np.arange(verifier_buffer_length)    # Create an array of indices [0, 1, 2, ..., verifier_buffer_length-1]
         # Compute expected prediction for verifier_buffer_length steps in the past:
         verifier_buffer = list(self.cumulant_hist)[-verifier_buffer_length:]
         expected_pred = np.sum(verifier_buffer * (gamma ** verifier_indices)) * (1-gamma)
-        self.verifier_hist[-(verifier_buffer_length+1)] = expected_pred
+        self.verifier_hist[-(verifier_buffer_length)] = expected_pred
 
     def draw(self):
         # Refresh the plot lines

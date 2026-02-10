@@ -23,7 +23,7 @@ LOAD_THRESHOLD = 100  # Load threshold for cumulant
 NUM_POS_BINS = 10   # For creating feature vector
 NUM_VEL_BINS = 20   # For creating feature vector
 GAMMA = 0.5         # Discount factor 
-ALPHA = 0.1         # Learning rate
+ALPHA = 0.7         # Learning rate
 VERIFIER_BUFFER_LENGTH = math.ceil(5*(1/(1-GAMMA)))  # Number of steps to look back at for verifier
 
 # Misc:
@@ -36,23 +36,34 @@ running = True      # Control flag to stop threads
 def get_paused(): return is_paused
 def get_running(): return running
 
-# 
-def on_press(key):
-    global is_paused
-    if key == keyboard.Key.space:
-        is_paused = not is_paused
-        print(f"*** {'PAUSED' if is_paused else 'RESUMED'} ***")
-        if is_paused:
-            # Stop motor where it is
-            p, _, _ = arm.read_from_motor(HAND_ID)
-            arm.set_goal_pos(HAND_ID, p)
-
 # -----------------------------------------------------------------------------------------
 # --- Main Loop  --------------------------------------------------------------------------
 # -----------------------------------------------------------------------------------------
 with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm:
     learner = TDLearner(ALPHA, GAMMA, feature_vector_length=NUM_POS_BINS * NUM_VEL_BINS)
     plotter = RLVisualizer(window_size=200)
+
+    # Define on_press inside the with block to access learner
+    def on_press(key):
+        global is_paused
+        if key == keyboard.Key.space:
+            is_paused = not is_paused
+            print(f"*** {'PAUSED' if is_paused else 'RESUMED'} ***")
+            if is_paused:
+                # Stop motor where it is
+                p, _, _ = arm.read_from_motor(HAND_ID)
+                arm.set_goal_pos(HAND_ID, p)
+        else:
+            try:
+                if key.char == 'a':
+                    if learner.alpha == 0:
+                        learner.alpha = ALPHA
+                        print("*** LEARNER ALPHA RESTORED ***")
+                    else:
+                        learner.alpha = 0
+                        print("*** LEARNER ALPHA SET TO 0 ***")
+            except AttributeError:
+                pass
 
     # Start the Movement Thread
     mover = threading.Thread(
