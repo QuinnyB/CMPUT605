@@ -52,13 +52,13 @@ class MiniBento:
                 time.sleep(0.1)
                 continue
             
-            # Step 1: Move to Position 1 (Close)
+            # Step 1: Move to Position 1
             self.set_goal_pos(motor_ID, pos1)
             self._safe_sleep(wait_time, check_paused, check_running)
 
-            # Step 2: Move to Position 2 (Open)
+            # Step 2: Move to Position 2
             if not check_paused() and check_running():
-                self.set_goal(motor_ID, pos2)
+                self.set_goal_pos(motor_ID, pos2)
                 self._safe_sleep(wait_time, check_paused, check_running)
 
     def _safe_sleep(self, duration, check_paused, check_running):

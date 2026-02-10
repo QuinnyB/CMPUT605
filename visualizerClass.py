@@ -26,12 +26,12 @@ class RLVisualizer:
         self.ax0_right = self.axs[0].twinx()
         self.line_vel, = self.ax0_right.plot(list(self.vel_hist), color='green', alpha=0.6, label='Velocity')
         self.ax0_right.set_ylabel('Velocity', color='green')
-        self.ax0_right.set_ylim(-300, 300) # Adjusted for RPM range
+        self.ax0_right.set_ylim(-100, 100) 
 
         # Middle Plot: Load
         self.line_load, = self.axs[1].plot(list(self.load_hist), color='red', alpha=0.6)
         self.axs[1].set_ylabel('Raw Load', color='red')
-        self.axs[1].set_ylim(-1100, 1100)
+        self.axs[1].set_ylim(-400, 400)
 
         # Bottom Plot: Learning Signals
         self.line_c, = self.axs[2].plot(list(self.cumulant_hist), color='orange', alpha=0.6, label='Cumulant')
@@ -50,7 +50,15 @@ class RLVisualizer:
         self.load_hist.append(load)
         self.cumulant_hist.append(cumulant)
         self.pred_hist.append(pred)
-        self.verifier_hist.append(verifier)
+        # self.verifier_hist.append(verifier)
+
+    def update_verifier(self, verifier_buffer_length, gamma):
+        self.verifier_hist.append(np.nan)
+        verifier_indices = np.arange(verifier_buffer_length)    # Create an array of indices [0, 1, 2, ..., verifier_buffer_length-1]
+        # Compute expected prediction for verifier_buffer_length steps in the past:
+        verifier_buffer = list(self.cumulant_hist)[-verifier_buffer_length:]
+        expected_pred = np.sum(verifier_buffer * (gamma ** verifier_indices)) * (1-gamma)
+        self.verifier_hist[-(verifier_buffer_length+1)] = expected_pred
 
     def draw(self):
         # Refresh the plot lines
@@ -63,6 +71,14 @@ class RLVisualizer:
         
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
+
+    def process_events(self):
+        # Keep the window alive without adding new data
+        if self.is_open():
+            # flush_events handles the 'X' button and resizing
+            self.fig.canvas.flush_events()
+            # This is a non-blocking way to keep the UI responsive
+            self.fig.canvas.start_event_loop(0.001)
 
     def is_open(self):
         # Check if the window is still open

@@ -36,16 +36,16 @@ def bin(value, num_bins):
     return bin_index
 
 # Convert position and velocity into feature vector X
-def featurize(pos, vel, motorMovement, learningParams):
+def featurize_pos_velo(pos, vel, pos1, pos2, max_velo, num_pos_bins, num_vel_bins):
     # Normalize position and velocity to [0, 1]
-    pos_norm = normalize(pos, motorMovement.HAND_POS_1, motorMovement.HAND_POS_2)
-    vel_norm = normalize(vel, -motorMovement.MOTOR_VELO, motorMovement.MOTOR_VELO)
+    pos_norm = normalize(pos, pos1, pos2)
+    vel_norm = normalize(vel, -max_velo, max_velo)
     # Determine bin indices
-    pos_bin = bin(pos_norm, learningParams.NUM_POS_BINS)
-    vel_bin = bin(vel_norm, learningParams.NUM_VEL_BINS)
+    pos_bin = bin(pos_norm, num_pos_bins)
+    vel_bin = bin(vel_norm, num_vel_bins)
     # Create feature vector
-    x = np.zeros(learningParams.NUM_POS_BINS * learningParams.NUM_VEL_BINS, dtype=int)
-    feature_idx = pos_bin * learningParams.NUM_VEL_BINS + vel_bin
+    x = np.zeros(num_pos_bins * num_vel_bins, dtype=int)
+    feature_idx = pos_bin * num_vel_bins + vel_bin
     x[feature_idx] = 1
     return x
 
