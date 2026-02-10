@@ -52,12 +52,23 @@ class RLVisualizer:
         self.pred_hist.append(pred)
         self.verifier_hist.append(verifier)
 
-    def update_verifier(self, verifier_buffer_length, gamma):
+    def update_verifier(self, learner):
+        # Convert deques to lists for math
+        gamma_hist = list(learner.gamma_history)
+        c_hist = list(learner.c_history)
+        # Create an array of indices [0, 1, 2, ..., learner.h_len-1]
+        verifier_indices = np.arange(learner.h_len)    
+        # Compute expected prediction for learner.h_len steps in the past
+        expected_pred = np.sum(c_hist * (gamma_hist ** verifier_indices))   
+        self.verifier_hist[-(learner.v_len)] = expected_pred * (1 - learner.gamma)  # Not sure what to scale by - default gamma? avg gamma?
+
+        """
         verifier_indices = np.arange(verifier_buffer_length)    # Create an array of indices [0, 1, 2, ..., verifier_buffer_length-1]
         # Compute expected prediction for verifier_buffer_length steps in the past:
         verifier_buffer = list(self.cumulant_hist)[-verifier_buffer_length:]
         expected_pred = np.sum(verifier_buffer * (gamma ** verifier_indices)) * (1-gamma)
         self.verifier_hist[-(verifier_buffer_length)] = expected_pred
+        """
 
     def draw(self):
         # Refresh the plot lines

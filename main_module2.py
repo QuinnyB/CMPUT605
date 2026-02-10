@@ -6,7 +6,7 @@ from visualizerClass import RLVisualizer
 from pynput import keyboard
 from helperFunctions import featurize_pos_velo, cumulant_loadThreshold
 
-# --- Set-up -----------------------------------------------------------------------------
+# --- Configuration -----------------------------------------------------------------------------
 # Robot arm:
 COMM_PORT = 'COM15'  # Update this to your port!
 BAUDRATE = 1000000
@@ -36,16 +36,15 @@ running = True      # Control flag to stop threads
 def get_paused(): return is_paused
 def get_running(): return running
 
-# -----------------------------------------------------------------------------------------
-# --- Main Loop  --------------------------------------------------------------------------
-# -----------------------------------------------------------------------------------------
+# --- Set up robot, learner, and visualizer  -------------------------------------------------------
 with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm:
     learner = TDLearner(ALPHA, GAMMA, feature_vector_length=NUM_POS_BINS * NUM_VEL_BINS)
     plotter = RLVisualizer(window_size=200)
 
-    # Define on_press inside the with block to access learner
+    # Define keyboard event handler
     def on_press(key):
         global is_paused
+        # Spacebar to Pause/Resume
         if key == keyboard.Key.space:
             is_paused = not is_paused
             print(f"*** {'PAUSED' if is_paused else 'RESUMED'} ***")
@@ -55,6 +54,7 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm:
                 arm.set_goal_pos(HAND_ID, p)
         else:
             try:
+                # 'a' key to toggle learning on/off
                 if key.char == 'a':
                     if learner.alpha == 0:
                         learner.alpha = ALPHA
@@ -77,6 +77,9 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm:
     listener = keyboard.Listener(on_press=on_press)
     listener.start()
 
+# -----------------------------------------------------------------------------------------
+# --- Main Loop  --------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------
     while plotter.is_open():
         if is_paused:
             plotter.process_events() # Handle window events
