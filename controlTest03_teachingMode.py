@@ -3,10 +3,10 @@ from pynput import keyboard
 from dynamixel_sdk import *
 
 # --- Settings ---
-DEVICE_NAME = 'COM13'  # Update to your port
+DEVICE_NAME = 'COM15'  # Update to your port
 PROTOCOL_VERSION = 2.0
 BAUDRATE = 1000000
-
+  
 ADDR_TORQUE_ENABLE    = 64
 ADDR_GOAL_POSITION    = 116
 ADDR_PRESENT_POSITION = 132
