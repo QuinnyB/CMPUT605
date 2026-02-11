@@ -1,5 +1,7 @@
 import threading
 import time
+import math
+import random
 from dynamixel_sdk import *
 from helperFunctions import to_signed_32, to_signed_16 
 
@@ -61,6 +63,20 @@ class MiniBento:
                 self.set_goal_pos(motor_ID, pos2)
                 self._safe_sleep(wait_time, check_paused, check_running)
 
+    def random_walk(self, motor_ID, lim1, lim2, check_paused, check_running):
+        last_pos, _ , _ = self.read_from_motor(motor_ID)
+        while check_running():
+            if check_paused():
+                time.sleep(0.1)
+                continue
+        
+            # Generate random position within limits
+            pos = random.randint(lim1, lim2)
+            wait_time = math.ceil((abs(pos - last_pos) / (4096 * 0.229 * self.motor_velo)) * 60)
+            self.set_goal_pos(motor_ID, pos)
+            last_pos = pos
+            self._safe_sleep(wait_time, check_paused, check_running)    
+            
     def _safe_sleep(self, duration, check_paused, check_running):
         # Helper to allow interrupting a long wait time if we pause
         end_time = time.time() + duration

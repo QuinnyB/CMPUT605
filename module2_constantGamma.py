@@ -197,7 +197,7 @@ try:
 
         # Calculate prediction
         pred = w@x * (1-learningParams.GAMMA)
-        pred_history.append(pred) # This might be updating the wrong index, need to think about it more
+        pred_history.append(pred)
 
         # Update plot lines
         line_pos.set_ydata(list(pos_history))

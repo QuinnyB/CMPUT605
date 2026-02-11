@@ -35,40 +35,25 @@ class RLVisualizer:
 
         # Bottom Plot: Learning Signals
         self.line_c, = self.axs[2].plot(list(self.cumulant_hist), color='orange', alpha=0.6, label='Cumulant')
-        self.line_pred, = self.axs[2].plot(list(self.pred_hist), color='purple', alpha=0.6, label='Prediction')
+        self.line_pred, = self.axs[2].plot(list(self.pred_hist), color='purple', alpha=0.6, drawstyle='steps-post', label='Prediction')
         self.line_verifier, = self.axs[2].plot(list(self.verifier_hist), color='brown', alpha=0.6, label='Verifier')
         self.axs[2].set_ylabel('Learning Signals', color='purple')
         self.axs[2].set_ylim(-0.5, 1.5)
-        self.axs[2].legend(loc='upper right', fontsize='small')
+        self.axs[2].legend(loc='upper left', fontsize='small')
 
         self.fig.tight_layout()
 
-    def update_data(self, pos, vel, load, cumulant, pred, verifier=np.nan):
+    def update_data(self, pos, vel, load, cumulant, pred):
         # Add new data points to the histories
         self.pos_hist.append(pos)
         self.vel_hist.append(vel)
         self.load_hist.append(load)
         self.cumulant_hist.append(cumulant)
-        self.pred_hist.append(pred)
-        self.verifier_hist.append(verifier)
-
-    def update_verifier(self, learner):
-        # Convert deques to lists for math
-        gamma_hist = list(learner.gamma_history)
-        c_hist = list(learner.c_history)
-        # Create an array of indices [0, 1, 2, ..., learner.h_len-1]
-        verifier_indices = np.arange(learner.h_len)    
-        # Compute expected prediction for learner.h_len steps in the past
-        expected_pred = np.sum(c_hist * (gamma_hist ** verifier_indices))   
-        self.verifier_hist[-(learner.v_len)] = expected_pred * (1 - learner.gamma)  # Not sure what to scale by - default gamma? avg gamma?
-
-        """
-        verifier_indices = np.arange(verifier_buffer_length)    # Create an array of indices [0, 1, 2, ..., verifier_buffer_length-1]
-        # Compute expected prediction for verifier_buffer_length steps in the past:
-        verifier_buffer = list(self.cumulant_hist)[-verifier_buffer_length:]
-        expected_pred = np.sum(verifier_buffer * (gamma ** verifier_indices)) * (1-gamma)
-        self.verifier_hist[-(verifier_buffer_length)] = expected_pred
-        """
+        self.pred_hist.append(pred)    
+        
+    def update_verifier(self, expected_pred, idx_back):
+        self.verifier_hist.append(np.nan)
+        self.verifier_hist[-(idx_back)] = expected_pred
 
     def draw(self):
         # Refresh the plot lines

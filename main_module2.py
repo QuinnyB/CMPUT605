@@ -4,14 +4,14 @@ from robotClass import MiniBento
 from learnerClasses import TDLearner
 from visualizerClass import RLVisualizer
 from pynput import keyboard
-from helperFunctions import featurize_pos_velo, cumulant_loadThreshold
+from helperFunctions import *
 
 # --- Configuration -----------------------------------------------------------------------------
 # Robot arm:
 COMM_PORT = 'COM15'  # Update this to your port!
 BAUDRATE = 1000000
 MOTOR_VELO = 20
-INITIAL_POSITIONS = {1: 2048, 2: 1980, 4: 2048, 5: 2780}
+INITIAL_POSITIONS = {1: 2048, 2: 1980, 4: 2300, 5: 2780}
 HAND_ID = 5
 HAND_POS_1= 1750
 HAND_POS_2 = 2650
@@ -22,9 +22,13 @@ WAIT_TIME = math.ceil(((POS_RANGE) / (4096 * 0.229 * MOTOR_VELO)) * 60)
 LOAD_THRESHOLD = 100  # Load threshold for cumulant
 NUM_POS_BINS = 10   # For creating feature vector
 NUM_VEL_BINS = 20   # For creating feature vector
-GAMMA = 0.5         # Discount factor 
-ALPHA = 0.7         # Learning rate
+GAMMA = 0.9         # Default discount factor 
+ALPHA = 0.8         # Learning rate
 VERIFIER_BUFFER_LENGTH = math.ceil(5*(1/(1-GAMMA)))  # Number of steps to look back at for verifier
+
+# Plotting
+# pred_plot_scale = (1-GAMMA)
+pred_plot_scale = 1
 
 # Misc:
 avg_update_time = 0
@@ -38,7 +42,7 @@ def get_running(): return running
 
 # --- Set up robot, learner, and visualizer  -------------------------------------------------------
 with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm:
-    learner = TDLearner(ALPHA, GAMMA, feature_vector_length=NUM_POS_BINS * NUM_VEL_BINS)
+    learner = TDLearner(ALPHA, GAMMA, feature_vector_length=NUM_POS_BINS*NUM_VEL_BINS, history_length=VERIFIER_BUFFER_LENGTH)
     plotter = RLVisualizer(window_size=200)
 
     # Define keyboard event handler
@@ -67,8 +71,11 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm:
 
     # Start the Movement Thread
     mover = threading.Thread(
-        target = arm.cycle_motor, 
-        args=(HAND_ID, HAND_POS_1, HAND_POS_2, WAIT_TIME, get_paused, get_running), 
+        # target = arm.cycle_motor, 
+        # args=(HAND_ID, HAND_POS_1, HAND_POS_2, WAIT_TIME, get_paused, get_running), 
+        # daemon=True
+        target = arm.random_walk,
+        args=(HAND_ID, HAND_POS_1, HAND_POS_2, get_paused, get_running), 
         daemon=True
     )
     mover.start()
@@ -94,16 +101,19 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm:
 
         # Convert next state into feature vector and cumulant
         x_next = featurize_pos_velo(pos, vel, HAND_POS_1, HAND_POS_2, MOTOR_VELO, NUM_POS_BINS, NUM_VEL_BINS)
-        c_next = cumulant_loadThreshold(load, LOAD_THRESHOLD)
-        
-        # Update TD learner and get prediction
-        learner.update(x_next, c_next)
-        pred = learner.get_prediction(x_next)
+        # c_next = get_cumulant_loadThreshold(load, LOAD_THRESHOLD)
+        # gamma_next = get_gamma_directionDependent(vel)
 
-        # 3. Visualize
-        plotter.update_data(pos, vel, load, c_next, pred)
+        c_next, gamma_next = get_c_and_gamma_loadCountdown(load, LOAD_THRESHOLD, GAMMA)
+
+        # Update TD learner and get next prediction
+        pred = learner.update(x_next, c_next, gamma_next)
+
+        # Visualize
+        plotter.update_data(pos, vel, load, c_next, pred*pred_plot_scale)
         if loop_count > VERIFIER_BUFFER_LENGTH:
-            plotter.update_verifier(VERIFIER_BUFFER_LENGTH, GAMMA)
+            expected_pred, idx_back = learner.get_verifier_data()
+            plotter.update_verifier(expected_pred*pred_plot_scale, idx_back)
         plotter.draw()
     
     running = False
