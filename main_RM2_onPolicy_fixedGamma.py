@@ -1,3 +1,5 @@
+''' Main code for Robot Module 2 - Objectibve 1: On-Policy TD Learning with Fixed Gamma'''
+
 import math
 import threading
 from robotClass import MiniBento
@@ -11,7 +13,7 @@ from helperFunctions import *
 COMM_PORT = 'COM15'  # Update this to your port!
 BAUDRATE = 1000000
 MOTOR_VELO = 20
-INITIAL_POSITIONS = {1: 2048, 2: 1980, 4: 2300, 5: 2780}
+INITIAL_POSITIONS = {1: 2048, 2: 1700, 4: 2600, 5: 2780}
 HAND_ID = 5
 HAND_POS_1= 1750
 HAND_POS_2 = 2650
@@ -24,11 +26,11 @@ NUM_POS_BINS = 10   # For creating feature vector
 NUM_VEL_BINS = 20   # For creating feature vector
 GAMMA = 0.9         # Default discount factor 
 ALPHA = 0.8         # Learning rate
+LAMBDA_ = 0.8       # Eligibility trace decay rate
 VERIFIER_BUFFER_LENGTH = math.ceil(5*(1/(1-GAMMA)))  # Number of steps to look back at for verifier
 
 # Plotting
-# pred_plot_scale = (1-GAMMA)
-pred_plot_scale = 1
+pred_plot_scale = (1-GAMMA)
 
 # Misc:
 avg_update_time = 0
@@ -42,7 +44,9 @@ def get_running(): return running
 
 # --- Set up robot, learner, and visualizer  -------------------------------------------------------
 with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm:
-    learner = TDLearner(ALPHA, GAMMA, feature_vector_length=NUM_POS_BINS*NUM_VEL_BINS, history_length=VERIFIER_BUFFER_LENGTH)
+    # learner = TDLearner(ALPHA, GAMMA, feature_vector_length=NUM_POS_BINS*NUM_VEL_BINS, history_length=VERIFIER_BUFFER_LENGTH)
+    learner = TDLearner(ALPHA, GAMMA, feature_vector_length=NUM_POS_BINS*NUM_VEL_BINS, 
+                        history_length=VERIFIER_BUFFER_LENGTH, lambda_=LAMBDA_)
     plotter = RLVisualizer(window_size=200)
 
     # Define keyboard event handler
@@ -101,13 +105,11 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm:
 
         # Convert next state into feature vector and cumulant
         x_next = featurize_pos_velo(pos, vel, HAND_POS_1, HAND_POS_2, MOTOR_VELO, NUM_POS_BINS, NUM_VEL_BINS)
-        # c_next = get_cumulant_loadThreshold(load, LOAD_THRESHOLD)
-        # gamma_next = get_gamma_directionDependent(vel)
-
-        c_next, gamma_next = get_c_and_gamma_loadCountdown(load, LOAD_THRESHOLD, GAMMA)
+        c_next = get_cumulant_absLoadThreshold(load, LOAD_THRESHOLD)
 
         # Update TD learner and get next prediction
-        pred = learner.update(x_next, c_next, gamma_next)
+        # pred = learner.update(x_next, c_next)
+        pred = learner.update_withEligibilityTraces(x_next, c_next)
 
         # Visualize
         plotter.update_data(pos, vel, load, c_next, pred*pred_plot_scale)

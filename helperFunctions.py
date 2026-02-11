@@ -49,7 +49,7 @@ def featurize_pos_velo(pos, vel, pos1, pos2, max_velo, num_pos_bins, num_vel_bin
     x[feature_idx] = 1
     return x
 
-def get_cumulant_loadThreshold(load, load_threshold):
+def get_cumulant_absLoadThreshold(load, load_threshold):
     # Convert load into signal of interest (cumulant)
     c = 1 if abs(load) > load_threshold else 0
     return c
@@ -62,7 +62,9 @@ def get_gamma_directionDependent(vel):
     
 def get_c_and_gamma_loadCountdown(load, load_threshold, default_gamma):
     c = 1
-    if abs(load) > load_threshold:
+    if load_threshold > 0 and load > load_threshold:
+        gamma = 0
+    elif load_threshold < 0 and load < load_threshold:
         gamma = 0
     else:
         gamma = default_gamma
