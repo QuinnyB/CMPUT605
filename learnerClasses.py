@@ -29,7 +29,6 @@ class TDLearner:
         print(f"TD Error (delta): {delta}")
         # Update weights: w = w + alpha * delta * x_cur
         self.w += self.alpha * delta * self.x_cur * importance_ratio
-        # print(f"Updated weights: {self.w}")
         # Calculate prediction - unsure if this should be before or after updating x_cur
         pred = self.w @ x_next
         # Update x_cur 

@@ -10,7 +10,7 @@ from helperFunctions import *
 
 # --- Configuration -----------------------------------------------------------------------------
 # Robot arm:
-COMM_PORT = 'COM15'  # Update this to your port!
+COMM_PORT = 'COM13'  # Update this to your port!
 BAUDRATE = 1000000
 MOTOR_VELO = 20
 INITIAL_POSITIONS = {1: 2048, 2: 1700, 4: 2600, 5: 2780}
@@ -25,9 +25,11 @@ LOAD_THRESHOLD = -25  # Load threshold for bump detection
 NUM_POS_BINS = 10   # For creating feature vector
 NUM_VEL_BINS = 3    # For creating feature vector
 GAMMA = 1.0         # Default discount factor 
-ALPHA = 0.5         # Learning rate
-VERIFIER_BUFFER_LENGTH = math.ceil(5*(1/(1-GAMMA)))  # Number of steps to look back at for verifier
-INITIAL_W = 1.0 / (1.0 - GAMMA) # Initial value for all weights, ("inifinte horizon" return for constant cumulant of 1)
+ALPHA = 0.1         # Learning rate
+# VERIFIER_BUFFER_LENGTH = math.ceil(5*(1/(1-GAMMA)))  # Number of steps to look back at for verifier
+# INITIAL_W = 1.0 / (1.0 - GAMMA) # Initial value for all weights, ("inifinte horizon" return for constant cumulant of 1)
+VERIFIER_BUFFER_LENGTH = 20
+INITIAL_W = 10.0
 
 # Plotting
 # pred_plot_scale = (1-GAMMA)
@@ -103,11 +105,11 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm:
         if pos is None: continue
 
         # Convert next state into feature vector, cumulant, and gamma
-        x_next = featurize_pos_velo(pos, vel, MOTOR_LIM_1, MOTOR_LIM_2, MOTOR_VELO, NUM_POS_BINS, NUM_VEL_BINS)
+        x_next, feature_idx, pos_bin, vel_bin = featurize_pos_velo(pos, vel, MOTOR_LIM_1, MOTOR_LIM_2, MOTOR_VELO, NUM_POS_BINS, NUM_VEL_BINS)
         c_next, gamma_next = get_c_and_gamma_loadCountdown(load, LOAD_THRESHOLD, GAMMA)
 
         # Get imprortance sampling ratio (1 if moving down toward bump, 0 if moving up away from bump)
-        importance_ratio = 1 if vel < 0 else 0
+        importance_ratio = 1.0 if vel < 0 else 0.0
 
         # Update TD learner and get next prediction
         pred = learner.update(x_next, c_next, gamma_next, importance_ratio)
@@ -118,5 +120,7 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm:
             expected_pred, idx_back = learner.get_verifier_data()
             plotter.update_verifier(expected_pred*pred_plot_scale, idx_back)
         plotter.draw()
-    
+
+        time.sleep(0.1)  # Small delay 
+  
     running = False
