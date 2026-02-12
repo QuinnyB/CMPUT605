@@ -47,7 +47,8 @@ def featurize_pos_velo(pos, vel, pos1, pos2, max_velo, num_pos_bins, num_vel_bin
     x = np.zeros(num_pos_bins * num_vel_bins, dtype=int)
     feature_idx = pos_bin * num_vel_bins + vel_bin
     x[feature_idx] = 1
-    return x
+    assert x.sum() == 1, "Feature vector should have exactly one active feature"
+    return x, feature_idx, pos_bin, vel_bin
 
 def get_cumulant_absLoadThreshold(load, load_threshold):
     # Convert load into signal of interest (cumulant)

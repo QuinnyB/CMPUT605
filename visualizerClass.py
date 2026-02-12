@@ -13,6 +13,7 @@ class RLVisualizer:
         self.cumulant_hist = deque([0] * window_size, maxlen=window_size)
         self.pred_hist = deque([0] * window_size, maxlen=window_size)
         self.verifier_hist = deque([np.nan] * window_size, maxlen=window_size)
+        self.bin_hist = deque([np.nan] * window_size, maxlen=window_size)  # For feature index (if desired)
 
         # Setup the figure and subplots
         plt.ion()
@@ -37,19 +38,26 @@ class RLVisualizer:
         self.line_c, = self.axs[2].plot(list(self.cumulant_hist), color='orange', alpha=0.6, label='Cumulant')
         self.line_pred, = self.axs[2].plot(list(self.pred_hist), color='purple', alpha=0.6, drawstyle='steps-post', label='Prediction')
         self.line_verifier, = self.axs[2].plot(list(self.verifier_hist), color='brown', alpha=0.6, label='Verifier')
-        self.axs[2].set_ylabel('Learning Signals', color='purple')
-        # self.axs[2].set_ylim(-0.5, 1.5)
+        self.ax0_right
+        # Plot feature index on the same plot with a secondary y-axis
+        self.ax2_right = self.axs[2].twinx()
+        self.line_bin, = self.ax2_right.plot(list(self.bin_hist), color='blue', alpha=0.6, drawstyle='steps-post', label='Feature Index')
+        self.ax2_right.set_ylabel('Feature Index', color='blue')
         self.axs[2].legend(loc='upper left', fontsize='small')
 
         self.fig.tight_layout()
 
-    def update_data(self, pos, vel, load, cumulant, pred):
+    def update_data(self, pos, vel, load, cumulant, pred, feature_idx=None):
         # Add new data points to the histories
         self.pos_hist.append(pos)
         self.vel_hist.append(vel)
         self.load_hist.append(load)
         self.cumulant_hist.append(cumulant)
-        self.pred_hist.append(pred)    
+        self.pred_hist.append(pred) 
+        if feature_idx is not None:
+            self.bin_hist.append(feature_idx)
+        else:
+            self.bin_hist.append(np.nan)
         
     def update_verifier(self, expected_pred, idx_back):
         self.verifier_hist.append(np.nan)
@@ -63,13 +71,15 @@ class RLVisualizer:
         self.line_c.set_ydata(list(self.cumulant_hist))
         self.line_pred.set_ydata(list(self.pred_hist))
         self.line_verifier.set_ydata(list(self.verifier_hist))
+        self.line_bin.set_ydata(list(self.bin_hist))
 
         # Update Y-limits dynamically
         self._smart_limit(self.axs[0], [self.pos_hist])
         self._smart_limit(self.ax0_right, [self.vel_hist])
         self._smart_limit(self.axs[1], [self.load_hist])
         self._smart_limit(self.axs[2], [self.cumulant_hist, self.pred_hist, self.verifier_hist])
-        
+        self._smart_limit(self.ax2_right, [self.bin_hist])
+    
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
 

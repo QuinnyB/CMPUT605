@@ -23,10 +23,10 @@ WAIT_TIME = math.ceil(((POS_RANGE) / (4096 * 0.229 * MOTOR_VELO)) * 60)
 # Learning:
 LOAD_THRESHOLD = 100  # Load threshold for cumulant
 NUM_POS_BINS = 10   # For creating feature vector
-NUM_VEL_BINS = 20   # For creating feature vector
-GAMMA = 0.9         # Default discount factor 
-ALPHA = 0.8         # Learning rate
-LAMBDA_ = 0.8       # Eligibility trace decay rate
+NUM_VEL_BINS = 15   # For creating feature vector
+GAMMA = 0.5         # Discount factor 
+ALPHA = 0.1         # Learning rate
+LAMBDA_ = 0.9       # Eligibility trace decay rate
 VERIFIER_BUFFER_LENGTH = math.ceil(5*(1/(1-GAMMA)))  # Number of steps to look back at for verifier
 
 # Plotting
@@ -75,11 +75,8 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm:
 
     # Start the Movement Thread
     mover = threading.Thread(
-        # target = arm.cycle_motor, 
-        # args=(HAND_ID, HAND_POS_1, HAND_POS_2, WAIT_TIME, get_paused, get_running), 
-        # daemon=True
-        target = arm.random_walk,
-        args=(HAND_ID, HAND_POS_1, HAND_POS_2, get_paused, get_running), 
+        target = arm.cycle_motor, 
+        args=(HAND_ID, HAND_POS_1, HAND_POS_2, WAIT_TIME, get_paused, get_running), 
         daemon=True
     )
     mover.start()
@@ -104,18 +101,21 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm:
         if pos is None: continue
 
         # Convert next state into feature vector and cumulant
-        x_next = featurize_pos_velo(pos, vel, HAND_POS_1, HAND_POS_2, MOTOR_VELO, NUM_POS_BINS, NUM_VEL_BINS)
+        x_next, feature_idx, pos_bin, vel_bin = featurize_pos_velo(pos, vel, HAND_POS_1, HAND_POS_2, MOTOR_VELO, NUM_POS_BINS, NUM_VEL_BINS)
         c_next = get_cumulant_absLoadThreshold(load, LOAD_THRESHOLD)
+        print(f"Step {loop_count}: pos={pos}, pos_bin={pos_bin}, vel={vel}, vel_bin={vel_bin}, load={load}, c={c_next}, feature_idx={feature_idx}")
 
         # Update TD learner and get next prediction
-        # pred = learner.update(x_next, c_next)
-        pred = learner.update_withEligibilityTraces(x_next, c_next)
+        pred = learner.update(x_next, c_next)
+        # pred = learner.update_withEligibilityTraces(x_next, c_next)
 
         # Visualize
-        plotter.update_data(pos, vel, load, c_next, pred*pred_plot_scale)
+        plotter.update_data(pos, vel, load, c_next, pred*pred_plot_scale)  # Scale prediction for plotting
         if loop_count > VERIFIER_BUFFER_LENGTH:
             expected_pred, idx_back = learner.get_verifier_data()
             plotter.update_verifier(expected_pred*pred_plot_scale, idx_back)
         plotter.draw()
+
+        time.sleep(0.1)  # Small delay 
     
     running = False
