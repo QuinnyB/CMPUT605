@@ -30,10 +30,10 @@ class TDLearner:
         # Update weights: w = w + alpha * delta * x_cur
         self.w += self.alpha * delta * self.x_cur * importance_ratio
         # print(f"Updated weights: {self.w}")
+        # Calculate prediction - unsure if this should be before or after updating x_cur
+        pred = self.w @ x_next
         # Update x_cur 
         self.x_cur = x_next
-        # Calculate prediction - unsure if this should be before or after updating x_cur
-        pred = self.w @ self.x_cur
         
         # Store history 
         self.gamma_history.append(gamma_next)
@@ -50,6 +50,7 @@ class TDLearner:
         if not hasattr(self, 'e'):
             raise AttributeError("Eligibility traces not initialized. Set lambda_ in constructor.")
         # Update eligibility traces: e = gamma*lambda*e + x_cur
+        # TO DO - change gamma to cur time step for eligibility trace
         # Add element-wise minimum between e and 1 to prevent explosion of traces (replacing traces))
         self.e = np.minimum(gamma_next*self.lambda_*self.e + self.x_cur, 1.0)
         # Update weights: w = w + alpha * delta * e
@@ -71,9 +72,15 @@ class TDLearner:
         # Convert deques to lists for math
         gamma_hist = list(self.gamma_history)
         c_hist = list(self.c_history)
-        # Create an array of indices [0, 1, 2, ..., learner.h_len-1]
-        verifier_indices = np.arange(self.h_len)    
+        
+        # # Create an array of indices [0, 1, 2, ..., learner.h_len-1]
+        # verifier_indices = np.arange(self.h_len)    
+        # # Compute expected prediction for learner.h_len steps in the past
+        # expected_pred = np.sum(c_hist * (self.gamma ** verifier_indices))
+
         # Compute expected prediction for learner.h_len steps in the past
-        expected_pred = np.sum(c_hist * (gamma_hist ** verifier_indices))
+        # G = C0 + y0C1 + y0y1C2 + y0y1y2C3 + ... 
+        discounts = np.concatenate((np.array([1]), np.cumprod(gamma_hist[:-1])))
+        expected_pred = np.sum(c_hist * discounts)
         # To do - add error ?
         return expected_pred, self.h_len

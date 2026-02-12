@@ -10,7 +10,7 @@ from helperFunctions import *
 
 # --- Configuration -----------------------------------------------------------------------------
 # Robot arm:
-COMM_PORT = 'COM15'  # Update this to your port!
+COMM_PORT = 'COM13'  # Update this to your port!
 BAUDRATE = 1000000
 MOTOR_VELO = 20
 INITIAL_POSITIONS = {1: 2048, 2: 1700, 4: 2600, 5: 2780}
@@ -25,7 +25,7 @@ LOAD_THRESHOLD = 100  # Load threshold for cumulant
 NUM_POS_BINS = 10   # For creating feature vector
 NUM_VEL_BINS = 15   # For creating feature vector
 GAMMA = 0.5         # Discount factor 
-ALPHA = 0.1         # Learning rate
+ALPHA = 0.1          # Learning rate
 LAMBDA_ = 0.9       # Eligibility trace decay rate
 VERIFIER_BUFFER_LENGTH = math.ceil(5*(1/(1-GAMMA)))  # Number of steps to look back at for verifier
 
