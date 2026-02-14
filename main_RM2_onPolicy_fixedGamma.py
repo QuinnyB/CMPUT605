@@ -27,9 +27,9 @@ WAIT_TIME = math.ceil(((POS_RANGE) / (4096 * 0.229 * MOTOR_VELO)) * 60)
 # Learning:
 LOAD_THRESHOLD = 100  # Load threshold for cumulant (applied as absolute value)
 NUM_POS_BINS = 10   # For creating feature vector
-NUM_VEL_BINS = 20   # For creating feature vector
-GAMMA = 0.5         # Termination signal
-ALPHA = 0.4         # Learning rate
+NUM_VEL_BINS = 20   # For creating f eature vector
+GAMMA = 0.5         # Termination signal 
+ALPHA = 0.4        # Learning rate
 LAMBDA_ = 0.8       # Eligibility trace decay rate
 VERIFIER_BUFFER_LENGTH = math.ceil(5*(1/(1-GAMMA)))  # Number of steps to look back at for verifier
 
@@ -37,7 +37,6 @@ VERIFIER_BUFFER_LENGTH = math.ceil(5*(1/(1-GAMMA)))  # Number of steps to look b
 pred_plot_scale = (1-GAMMA)
 
 # Misc:
-avg_update_time = 0
 loop_count = 0
 is_paused = False   # Global pause flag
 running = True      # Control flag to stop threads
@@ -48,10 +47,9 @@ def get_running(): return running
 
 # --- Set up robot, learner, and visualizer  -------------------------------------------------------
 with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm:
-    # learner = TDLearner(ALPHA, GAMMA, feature_vector_length=NUM_POS_BINS*NUM_VEL_BINS, history_length=VERIFIER_BUFFER_LENGTH)
     learner = TDLearner(ALPHA, GAMMA, feature_vector_length=NUM_POS_BINS*NUM_VEL_BINS, 
                         history_length=VERIFIER_BUFFER_LENGTH, lambda_=LAMBDA_)
-    plotter = TDVisualizer(window_size=200)
+    plotter = TDVisualizer(window_size=100)
 
     # Define keyboard event handler
     def on_press(key):
@@ -119,6 +117,6 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm:
             plotter.update_verifier(expected_pred*pred_plot_scale, idx_back)    # Scale verifier for plotting
         plotter.draw()
 
-        time.sleep(0.1)  # Small delay 
+        time.sleep(0.01)  # Small delay to control update rate
     
     running = False

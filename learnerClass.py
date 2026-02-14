@@ -31,8 +31,8 @@ class TDLearner:
         if gamma_next is None: gamma_next = self.gamma
         # Calculate TD error: delta = c_next + gamma * w*x_next - w*x_cur
         delta = c_next + gamma_next * (self.w @ x_next) - (self.w @ self.x_cur)
-        print(f"Weight of x_cur: {self.w @ self.x_cur}, Weight of x_next: {self.w @ x_next}")
-        print(f"TD Error (delta): {delta}")
+        # print(f"Weight of x_cur: {self.w @ self.x_cur}, Weight of x_next: {self.w @ x_next}")
+        # print(f"TD Error (delta): {delta}")
         # Update weights: w = w + alpha * delta * x_cur
         self.w += self.alpha * delta * self.x_cur * importance_ratio
         # Calculate prediction
@@ -84,3 +84,10 @@ class TDLearner:
         discounts = np.concatenate((np.array([1]), np.cumprod(gamma_hist[:-1])))
         expected_pred = np.sum(c_hist * discounts)
         return expected_pred, self.h_len
+    
+    # Clear 
+    def clear_eligibility_traces(self):
+        if not hasattr(self, 'e'):
+            raise AttributeError("Eligibility traces not initialized. Set lambda_ in constructor.")
+        self.e.fill(0)
+ 

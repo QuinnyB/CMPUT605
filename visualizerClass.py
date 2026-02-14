@@ -13,7 +13,7 @@ from collections import deque
 import numpy as np
 
 class TDVisualizer:
-    def __init__(self, window_size=200, plotFeatureIndex=False):
+    def __init__(self, window_size=200, plotFeatureIndex=False, c_label='Cumulant'):
         self.window_size = window_size
         
         # Initialize deques to hold history
@@ -35,26 +35,25 @@ class TDVisualizer:
         self.axs[0].set_ylabel('Position', color='blue')
         
         self.ax0_right = self.axs[0].twinx()
-        self.line_vel, = self.ax0_right.plot(list(self.vel_hist), color='deepskyblue', alpha=0.6, label='Velocity')
+        self.line_vel, = self.ax0_right.plot(list(self.vel_hist), color='deepskyblue', alpha=0.7, label='Velocity')
         self.ax0_right.set_ylabel('Velocity', color='deepskyblue')
 
         # Middle Plot: Load
-        self.line_load, = self.axs[1].plot(list(self.load_hist), color='purple', alpha=0.6)
+        self.line_load, = self.axs[1].plot(list(self.load_hist), color='purple', alpha=0.7)
         self.axs[1].set_ylabel('Raw Load', color='purple')
 
         # Bottom Plot: Learning Signals
-        self.line_c, = self.axs[2].plot(list(self.cumulant_hist), color='black', alpha=0.6, label='Cumulant')
-        self.line_pred, = self.axs[2].plot(list(self.pred_hist), color='orange', alpha=0.6, drawstyle='steps-post', label='Prediction')
-        self.line_verifier, = self.axs[2].plot(list(self.verifier_hist), color='mediumseagreen', alpha=0.6, label='Verifier')
+        self.line_c, = self.axs[2].plot(list(self.cumulant_hist), color='black', alpha=0.7, label=c_label)
+        self.line_pred, = self.axs[2].plot(list(self.pred_hist), color='orange', alpha=0.7, drawstyle='steps-post', label='Prediction')
+        self.line_verifier, = self.axs[2].plot(list(self.verifier_hist), color='mediumseagreen', alpha=0.7, label='Verifier')
         self.axs[2].set_ylabel('Learning Signals', color='black')
         self.axs[2].legend(loc='upper left', fontsize='small')
         if plotFeatureIndex:
             # Plot feature index on the same plot with a secondary y-axis
             self.ax2_right = self.axs[2].twinx()
-            self.line_bin, = self.ax2_right.plot(list(self.bin_hist), color='blue', alpha=0.6, drawstyle='steps-post', label='Feature Index')
+            self.line_bin, = self.ax2_right.plot(list(self.bin_hist), color='blue', alpha=0.2, drawstyle='steps-post', label='Feature Index', zorder=1)
             self.ax2_right.set_ylabel('Feature Index', color='blue')
-            
-
+ 
         self.fig.tight_layout()
 
     def update_data(self, pos, vel, load, cumulant, pred, feature_idx=None):
@@ -70,6 +69,7 @@ class TDVisualizer:
             self.bin_hist.append(np.nan)
         
     def update_verifier(self, expected_pred, idx_back):
+        # Add new data point to verifier
         self.verifier_hist.append(np.nan)
         self.verifier_hist[-(idx_back)] = expected_pred
 
