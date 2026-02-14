@@ -1,3 +1,9 @@
+'''
+Helper functions for CMPUT 605 Robot Module 2
+Written by: Quinn Boser, with assistance from Google Gemini 
+Feb. 2026
+'''
+
 import matplotlib.pyplot as plt
 from collections import deque
 from dynamixel_sdk import *
@@ -50,17 +56,15 @@ def featurize_pos_velo(pos, vel, pos1, pos2, max_velo, num_pos_bins, num_vel_bin
     assert x.sum() == 1, "Feature vector should have exactly one active feature"
     return x, feature_idx, pos_bin, vel_bin
 
+# Convert load into cumulant based on given threshold 
+# If absolute value of load > threshold, cumulant = 1, otherwise 0
 def get_cumulant_absLoadThreshold(load, load_threshold):
-    # Convert load into signal of interest (cumulant)
     c = 1 if abs(load) > load_threshold else 0
     return c
-
-def get_gamma_directionDependent(vel):
-    if vel > 0:
-        return 0.9
-    else:       
-        return 0.5
     
+# Convert load into cumulant and state dependent gamma for countdown learner
+# Cumulant always = 1
+# Gamma = 0 if load exceeds threshold (directional), otherwise 1
 def get_c_and_gamma_loadCountdown(load, load_threshold, default_gamma):
     c = 1
     if load_threshold > 0 and load > load_threshold:

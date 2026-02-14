@@ -1,16 +1,20 @@
-''' Main code for Robot Module 2 - Objectibve 1: On-Policy TD Learning with Fixed Gamma'''
+''' 
+Main code for CMPUT 605 Robot Module 2 - Objectibve 1: On-Policy TD Learning with Fixed Gamma
+Written by: Quinn Boser, with assistance from Google Gemini 
+Feb. 2026
+'''
 
 import math
 import threading
 from robotClass import MiniBento
-from learnerClasses import TDLearner
-from visualizerClass import RLVisualizer
+from learnerClass import TDLearner
+from visualizerClass import TDVisualizer
 from pynput import keyboard
 from helperFunctions import *
 
 # --- Configuration -----------------------------------------------------------------------------
 # Robot arm:
-COMM_PORT = 'COM13'  # Update this to your port!
+COMM_PORT = 'COM15'     # Lab Mini Bento likes port 13, home likes 15
 BAUDRATE = 1000000
 MOTOR_VELO = 20
 INITIAL_POSITIONS = {1: 2048, 2: 1700, 4: 2600, 5: 2780}
@@ -21,12 +25,12 @@ POS_RANGE = HAND_POS_2 - HAND_POS_1
 WAIT_TIME = math.ceil(((POS_RANGE) / (4096 * 0.229 * MOTOR_VELO)) * 60)
 
 # Learning:
-LOAD_THRESHOLD = 100  # Load threshold for cumulant
+LOAD_THRESHOLD = 100  # Load threshold for cumulant (applied as absolute value)
 NUM_POS_BINS = 10   # For creating feature vector
-NUM_VEL_BINS = 15   # For creating feature vector
-GAMMA = 0.5         # Discount factor 
-ALPHA = 0.1          # Learning rate
-LAMBDA_ = 0.9       # Eligibility trace decay rate
+NUM_VEL_BINS = 20   # For creating feature vector
+GAMMA = 0.5         # Termination signal
+ALPHA = 0.4         # Learning rate
+LAMBDA_ = 0.8       # Eligibility trace decay rate
 VERIFIER_BUFFER_LENGTH = math.ceil(5*(1/(1-GAMMA)))  # Number of steps to look back at for verifier
 
 # Plotting
@@ -47,7 +51,7 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm:
     # learner = TDLearner(ALPHA, GAMMA, feature_vector_length=NUM_POS_BINS*NUM_VEL_BINS, history_length=VERIFIER_BUFFER_LENGTH)
     learner = TDLearner(ALPHA, GAMMA, feature_vector_length=NUM_POS_BINS*NUM_VEL_BINS, 
                         history_length=VERIFIER_BUFFER_LENGTH, lambda_=LAMBDA_)
-    plotter = RLVisualizer(window_size=200)
+    plotter = TDVisualizer(window_size=200)
 
     # Define keyboard event handler
     def on_press(key):
@@ -106,14 +110,13 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm:
         print(f"Step {loop_count}: pos={pos}, pos_bin={pos_bin}, vel={vel}, vel_bin={vel_bin}, load={load}, c={c_next}, feature_idx={feature_idx}")
 
         # Update TD learner and get next prediction
-        pred = learner.update(x_next, c_next)
-        # pred = learner.update_withEligibilityTraces(x_next, c_next)
+        pred = learner.update_withEligibilityTraces(x_next, c_next)
 
         # Visualize
         plotter.update_data(pos, vel, load, c_next, pred*pred_plot_scale)  # Scale prediction for plotting
         if loop_count > VERIFIER_BUFFER_LENGTH:
             expected_pred, idx_back = learner.get_verifier_data()
-            plotter.update_verifier(expected_pred*pred_plot_scale, idx_back)
+            plotter.update_verifier(expected_pred*pred_plot_scale, idx_back)    # Scale verifier for plotting
         plotter.draw()
 
         time.sleep(0.1)  # Small delay 
