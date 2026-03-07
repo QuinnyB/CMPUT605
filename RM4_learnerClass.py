@@ -33,18 +33,18 @@ class ACLearner:
 
         # Initialize things
         feature_vector_length = agent_dict.get("feature_vector_length")
-        initial_actor_w = agent_dict.get("initial_actor_w", 0)
-        initial_critic_w = agent_dict.get("initial_critic_w", 0)
+        initial_actor_w = agent_dict.get("initial_actor_w", 0.0)
+        initial_critic_w = agent_dict.get("initial_critic_w", 0.0)
         self.x_cur = np.zeros(feature_vector_length, dtype=int) 
         self.actor_w = np.full((feature_vector_length, self.num_actions), initial_actor_w)
         self.critic_w = np.full(feature_vector_length, initial_critic_w)
         self.avg_reward = 0.0
         self.last_action = None 
         self.softmax_probs = compute_softmax_prob(self.actor_w, self.x_cur)
-        print(self.softmax_probs)
     
     # Update weights 
     def update(self, reward_next, x_next):
+        # print(f"Before update: avg_reward={self.avg_reward}, critic_w={self.critic_w}, actor_w={self.actor_w}")
         # Calculate TD error: delta = reward_next - avg_reward + critic_w*x_next - critic_w*x_cur
         delta = reward_next - self.avg_reward + (self.critic_w @ x_next) - (self.critic_w @ self.x_cur)
         # Update average reward: avg_reward = avg_reward + avg_reward_alpha * delta
@@ -66,6 +66,7 @@ class ACLearner:
         action = get_softmax_action(self.softmax_probs)
         # Store last action taken (for use in update step)
         self.last_action = action
+        print(f"Selected action {action} with softmax probabilities {self.softmax_probs}")
         return action
 
  

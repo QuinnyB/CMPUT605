@@ -24,6 +24,8 @@ class MiniBento:
         self.lock = threading.Lock() 
         # Set motor addresses:
         # (see https://emanual.robotis.com/docs/en/dxl/x/xl330-m288/)
+        self.addr_min_position = 52
+        self.addr_max_position = 48
         self.addr_torque_enable = 64
         self.addr_goal_position = 116
         self.addr_profile_velocity = 112
@@ -58,6 +60,19 @@ class MiniBento:
         with self.lock:     # Wait our turn to use the COM port
             self.packetHandler.write4ByteTxRx(self.portHandler, motor_id, self.addr_goal_position, pos)
 
+    def move_x_amount(self, motor_id, amount, min_pos=None, max_pos=None):
+        # Move motor a certain amount relative to current position
+        with self.lock:     # Wait our turn to use the COM port
+            p, _, _ = self.packetHandler.read4ByteTxRx(self.portHandler, motor_id, self.addr_present_position)
+            if min_pos is None:
+                min_pos, _, _, = self.packetHandler.read4ByteTxRx(self.portHandler, motor_id, self.addr_min_position)
+            if max_pos is None:
+                max_pos, _, _, = self.packetHandler.read4ByteTxRx(self.portHandler, motor_id, self.addr_max_position)
+            if p is not None:
+                new_pos = max(min_pos, min(max_pos, p + amount))  # Ensure new position is within limits
+                self.packetHandler.write4ByteTxRx(self.portHandler, motor_id, self.addr_goal_position, new_pos)
+            
+    
     def cycle_motor(self, motor_ID, pos1, pos2, wait_time, check_paused, check_running):
         # Move motor between two goal positions repeatedly
         while check_running():
