@@ -70,9 +70,11 @@ class MiniBento:
                 max_pos, _, _, = self.packetHandler.read4ByteTxRx(self.portHandler, motor_id, self.addr_max_position)
             if p is not None:
                 new_pos = max(min_pos, min(max_pos, p + amount))  # Ensure new position is within limits
+                wait_time = (abs(new_pos - p) / (4096 * 0.229 * self.motor_velo)) * 60  # Calculate time required to move to new position
                 self.packetHandler.write4ByteTxRx(self.portHandler, motor_id, self.addr_goal_position, new_pos)
+                return wait_time
+        return None
             
-    
     def cycle_motor(self, motor_ID, pos1, pos2, wait_time, check_paused, check_running):
         # Move motor between two goal positions repeatedly
         while check_running():
