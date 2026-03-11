@@ -24,7 +24,7 @@ class ACVisualizer:
             "goal_pos": float or None, Optional horizontal line to indicate goal position on the plot
             "pos_range": tuple or None, The min/max position values for the Y-axis (e.g., (0, 4095))
             "reward_range": tuple or None, The min/max reward values for the Y-axis (e.g., (-1, 0))
-            "action_mode": str or None, 'discrete' or 'continuous' - whether the action plot should show discrete probabilities or a continuous distribution
+            "action_mode": str, 'discrete' or 'continuous' - whether the action plot should show discrete probabilities or a continuous distribution
             "action_labels": list or None, List of action names for discrete mode (e.g., ['Left', 'Right'])
             "action_range": tuple or None, The min/max action values for the continuous X-axis.
         }
@@ -35,7 +35,7 @@ class ACVisualizer:
         self.reward_range = visualizer_dict.get("reward_range")
         self.mode = visualizer_dict.get("action_mode")
         self.action_labels = visualizer_dict.get("action_labels")
-        self.action_range = visualizer_dict.get("action_range")
+        self.action_range = visualizer_dict.get("action_range", [-3,3])
 
         # History buffers
         self.pos_hist = deque([np.nan] * self.window_size, maxlen=self.window_size)
@@ -92,8 +92,9 @@ class ACVisualizer:
             # Initialize a vertical line for the sampled action
             self.v_line = self.ax_probs.axvline(x=0, color='orange', linestyle='--', alpha=0.8, label='Sampled Action')
             self.ax_probs.set_xlim(self.action_range)
+            self.ax_probs.set_xlabel('Position Adjustment')
             self.ax_probs.set_ylim(0, 1.0)
-            self.ax_probs.set_ylabel('Density')
+            self.ax_probs.set_ylabel('Probability Density')
             self.ax_probs.legend(loc='upper left')
 
         self.fig.tight_layout()

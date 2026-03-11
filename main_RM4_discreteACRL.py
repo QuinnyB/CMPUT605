@@ -1,5 +1,5 @@
 ''' 
-Main code for CMPUT 605 Robot Module 4 - Objectibve 2: Discrete Actor-Critic Learning
+Main code for CMPUT 605 Robot Module 4 - Objectibve 1: Discrete Actor-Critic Learning
 Written by: Quinn Boser, with assistance from Google Gemini 
 Feb. 2026
 '''
@@ -27,12 +27,14 @@ NUM_POS_BINS = 10  # For creating feature vector
 MOVE_AMOUNT = math.floor((MOTOR_LIM_2 - MOTOR_LIM_1)/NUM_POS_BINS) # Amount to move when taking an action (in motor encoder units)
 GOAL_POS = random.randint(MOTOR_LIM_1, MOTOR_LIM_2)
 agent_params = {
-    "actor_alpha": 0.5,
-    "critic_alpha": 0.8,
-    "avg_reward_alpha": 0.1,
+    # "actor_alpha": 0.5,
+    # "critic_alpha": 0.8,
+    # "avg_reward_alpha": 0.1,
+    "actor_alpha": 0.25,
+    "critic_alpha": 1.0,
+    "avg_reward_alpha": 0.0156,
     "num_actions": 3,   # decrease position [0], stay [1], or increase position [2]
-    "feature_vector_length": NUM_POS_BINS,
-    # "initial_avg_reward": -0.5
+    "feature_vector_length": NUM_POS_BINS
     }
 
 # Plotting:

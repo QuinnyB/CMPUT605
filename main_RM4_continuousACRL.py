@@ -1,5 +1,5 @@
 ''' 
-Main code for CMPUT 605 Robot Module 4 - Objectibve 2: Discrete Actor-Critic Learning
+Main code for CMPUT 605 Robot Module 4 - Objectibve 2: Continuous Actor-Critic Learning
 Written by: Quinn Boser, with assistance from Google Gemini 
 Feb. 2026
 '''
@@ -8,7 +8,7 @@ import math
 import random
 from pynput import keyboard
 from RM4_robotClass import MiniBento
-from RM4_learnerClass import ACLearner_Discrete
+from RM4_learnerClass import ACLearner_Continuous
 from RM4_visualizerClass import ACVisualizer
 from RM4_helperFunctions import *
 
@@ -24,15 +24,13 @@ MOTOR_LIM_2 = 2500
 
 # Learning:
 NUM_POS_BINS = 10  # For creating feature vector
-MOVE_AMOUNT = math.floor((MOTOR_LIM_2 - MOTOR_LIM_1)/NUM_POS_BINS) # Amount to move when taking an action (in motor encoder units)
+MOVE_AMOUNT = math.floor((MOTOR_LIM_2 - MOTOR_LIM_1)/NUM_POS_BINS) # Amount of movement that will correspond to 1 when taking an action (in motor encoder units)
 GOAL_POS = random.randint(MOTOR_LIM_1, MOTOR_LIM_2)
 agent_params = {
-    "actor_alpha": 0.5,
-    "critic_alpha": 0.8,
+    "actor_alpha": 0.2,
+    "critic_alpha": 0.4,
     "avg_reward_alpha": 0.1,
-    "num_actions": 3,   # decrease position [0], stay [1], or increase position [2]
     "feature_vector_length": NUM_POS_BINS,
-    # "initial_avg_reward": -0.5
     }
 
 # Plotting:
@@ -41,8 +39,7 @@ visualizer_params = {
     "goal_pos": GOAL_POS,
     "pos_range": [MOTOR_LIM_1, MOTOR_LIM_2],
     "reward_range": [-1.0, 0.2],
-    "action_mode": 'discrete',
-    "action_labels": ['Decrease Position', 'Hold Position', 'Increase Position'],
+    "action_mode": 'continuous'
 }
 
 # Misc:
@@ -56,7 +53,7 @@ def get_running(): return running
 
 # --- Set up robot, learner, and visualizer  -------------------------------------------------------
 with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm:
-    learner = ACLearner_Discrete(agent_params)
+    learner = ACLearner_Continuous(agent_params)
     plotter = ACVisualizer(visualizer_params)
 
     # Define keyboard event handler
@@ -105,20 +102,14 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm:
         
         # Get next action from learner and take action on robot
         action = learner.get_next_action()
-        if action == 0:   # Decrease Position
-            wait_time = arm.move_x_amount(MOTOR_ID, -MOVE_AMOUNT, min_pos=MOTOR_LIM_1, max_pos=MOTOR_LIM_2)
-        elif action == 1: # Hold Position
-            wait_time = 0
-            pass
-        elif action == 2: # Increase Position
-            wait_time = arm.move_x_amount(MOTOR_ID, MOVE_AMOUNT, min_pos=MOTOR_LIM_1, max_pos=MOTOR_LIM_2)
+        wait_time = arm.move_x_amount(MOTOR_ID, round(action*MOVE_AMOUNT), min_pos=MOTOR_LIM_1, max_pos=MOTOR_LIM_2)
 
         # Visualize
-        plotter.update_data(pos, reward_next, learner.avg_reward, learner.softmax_probs, learner.last_action) 
+        plotter.update_data(pos, reward_next, learner.avg_reward, [learner.mu, learner.sd], learner.last_action) 
         plotter.draw()
 
         # Wait f or motor to get to position and human to process visualization before next loop iteration
-        time.sleep(wait_time + 0.5)
+        time.sleep(wait_time + 1)
         print("\n")
     
     running = False
