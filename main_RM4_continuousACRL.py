@@ -14,7 +14,7 @@ from RM4_helperFunctions import *
 
 # --- Configuration -----------------------------------------------------------------------------
 # Robot arm:
-COMM_PORT = 'COM15'     # Lab Mini Bento likes port 13, home likes 15
+COMM_PORT = 'COM13'     # Lab Mini Bento likes port 13, home likes 15
 BAUDRATE = 1000000
 MOTOR_VELO = 20
 INITIAL_POSITIONS = {1: 2048, 2: 1800, 4: 2700, 5: 2780}
@@ -27,10 +27,17 @@ NUM_POS_BINS = 10  # For creating feature vector
 MOVE_AMOUNT = math.floor((MOTOR_LIM_2 - MOTOR_LIM_1)/NUM_POS_BINS) # Amount of movement that will correspond to 1 when taking an action (in motor encoder units)
 GOAL_POS = random.randint(MOTOR_LIM_1, MOTOR_LIM_2)
 agent_params = {
-    "actor_alpha": 0.2,
-    "critic_alpha": 0.4,
-    "avg_reward_alpha": 0.1,
     "feature_vector_length": NUM_POS_BINS,
+    "lambda_critic": 0.3,
+    "lambda_actor": 0.3,
+    # "actor_alpha": 0.7,
+    # "critic_alpha": 0.9,
+    # "avg_reward_alpha": 0.1,
+    "avg_reward_alpha": 0.01,
+    "critic_alpha": 0.3,
+    "actor_alpha_mu": 0.1,
+    "actor_alpha_sd": 0.5,
+    "initial_avg_reward": -0.5
     }
 
 # Plotting:
@@ -59,8 +66,8 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm:
     # Define keyboard event handler
     def on_press(key):
         global is_paused
-        # Spacebar to Pause/Resume
-        if key == keyboard.Key.space:
+        # ` key to Pause/Resume
+        if key.char == '`': 
             is_paused = not is_paused
             print(f"*** {'PAUSED' if is_paused else 'RESUMED'} ***")
             if is_paused:
@@ -109,7 +116,7 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm:
         plotter.draw()
 
         # Wait f or motor to get to position and human to process visualization before next loop iteration
-        time.sleep(wait_time + 1)
+        time.sleep(wait_time + 0.5)
         print("\n")
     
     running = False

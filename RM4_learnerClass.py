@@ -72,10 +72,12 @@ class ACLearner_Continuous:
         """Setup for the agent called when the experiment first starts.
         Assume agent_dict contains:
         {
-            "actor_alpha": float,
-            "critic_alpha": float,
-            "avg_reward_alpha": float,
             "feature_vector_length": int,
+            "avg_reward_alpha": float,
+            "critic_alpha": float,
+            "actor_alpha": float,
+            "lambda_actor": float or None (default None, meaning no eligibility traces for actor),
+            "lambda_critic": float or None (default None, meaning no eligibility traces for critic),
             "initial_actor_mu": float or None (default 0.0),
             "initial_actor_sd": float or None (default 0.0),
             "initial_critic_w": float or None (default 0.0),
@@ -83,20 +85,26 @@ class ACLearner_Continuous:
         }
         """
         # Set parameters from agent_dict
-        self.actor_alpha = agent_dict.get("actor_alpha")
-        self.critic_alpha = agent_dict.get("critic_alpha")
-        self.avg_reward_alpha = agent_dict.get("avg_reward_alpha")
         feature_vector_length = agent_dict.get("feature_vector_length")
+        self.avg_reward_alpha = agent_dict.get("avg_reward_alpha")
+        self.critic_alpha = agent_dict.get("critic_alpha")
+        self.actor_alpha_mu = agent_dict.get("actor_alpha_mu")
+        self.actor_alpha_sd = agent_dict.get("actor_alpha_sd")
+        self.lambda_actor = agent_dict.get("lambda_actor", 0.0)
+        self.lambda_critic = agent_dict.get("lambda_critic", 0.0)
         initial_actor_mu = agent_dict.get("initial_actor_w", 0.0)
         initial_actor_sd = agent_dict.get("initial_actor_w", 0.0)
         initial_critic_w = agent_dict.get("initial_critic_w", 0.0)
         self.avg_reward = agent_dict.get("initial_avg_reward", 0.0)
 
         # Initialize things
-        self.x_cur = np.zeros(feature_vector_length, dtype=int) 
-        self.actor_w_mu = np.full((feature_vector_length), initial_actor_mu)
-        self.actor_w_sd = np.full((feature_vector_length), initial_actor_sd)
-        self.critic_w = np.full(feature_vector_length, initial_critic_w)
+        self.x_cur = np.zeros(feature_vector_length, dtype=int) # Current state feature vector
+        self.critic_e = np.zeros(feature_vector_length)         # For eligibility trace vector for critic
+        self.actor_e_mu = np.zeros(feature_vector_length)       # For eligibility trace vector for actor mean
+        self.actor_e_sd = np.zeros(feature_vector_length)       # For eligibility trace vector for actor standard deviation
+        self.critic_w = np.full(feature_vector_length, initial_critic_w) # Critic weight vector
+        self.actor_w_mu = np.full((feature_vector_length), initial_actor_mu) # Actor weight vector for mean
+        self.actor_w_sd = np.full((feature_vector_length), initial_actor_sd) # Actor weight vector for standard deviation
         self.last_action = None 
         self.mu = 0.0
         self.sd = 1.0
@@ -108,12 +116,17 @@ class ACLearner_Continuous:
         delta = reward_next - self.avg_reward + (self.critic_w @ x_next) - (self.critic_w @ self.x_cur)
         # Update average reward: avg_reward = avg_reward + avg_reward_alpha * delta
         self.avg_reward += self.avg_reward_alpha * delta
-        # Update critic weights: critic_w = critic_w + critic_alpha * delta * x_cur
-        self.critic_w += self.critic_alpha * delta * self.x_cur
+        # Update critic eligibility traces: 
+        self.critic_e = self.lambda_critic * self.critic_e + self.x_cur
+        # Update actor eligibility traces:
+        self.actor_e_mu = self.lambda_actor * self.actor_e_mu + (self.last_action - self.mu) * self.x_cur
+        self.actor_e_sd = self.lambda_actor * self.actor_e_sd + ((self.last_action - self.mu)**2 - self.sd**2) * self.x_cur
+        # Update critic weights: 
+        self.critic_w += self.critic_alpha * delta * self.critic_e
         # Update actor weights:
         print(f"Updating actor weights with delta={delta}, last_action={self.last_action}, mu={self.mu}, sd={self.sd}")
-        self.actor_w_mu += self.actor_alpha*delta*(self.last_action - self.mu)*self.x_cur
-        self.actor_w_sd += self.actor_alpha*delta*((self.last_action - self.mu)**2 - self.sd**2)*self.x_cur
+        self.actor_w_mu += self.actor_alpha_mu * delta * self.actor_e_mu
+        self.actor_w_sd += self.actor_alpha_sd * delta * self.actor_e_sd
         # Update x_cur 
         self.x_cur = x_next
         return
@@ -122,7 +135,7 @@ class ACLearner_Continuous:
     def get_next_action(self):
         # Calculate mean and standard deviation for current state
         self.mu = self.actor_w_mu @ self.x_cur
-        self.sd = np.exp(self.actor_w_sd @ self.x_cur)
+        self.sd = np.exp(np.clip(self.actor_w_sd @ self.x_cur,-20,2)) # clip ln of sd to avoid overflow
         # Select action from normal distribution with mean mu and standard deviation sd
         action = np.random.normal(self.mu, self.sd)
         # Store last action taken (for use in update step)

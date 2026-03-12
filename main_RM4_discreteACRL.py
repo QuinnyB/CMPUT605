@@ -14,7 +14,7 @@ from RM4_helperFunctions import *
 
 # --- Configuration -----------------------------------------------------------------------------
 # Robot arm:
-COMM_PORT = 'COM15'     # Lab Mini Bento likes port 13, home likes 15
+COMM_PORT = 'COM13'     # Lab Mini Bento likes port 13, home likes 15
 BAUDRATE = 1000000
 MOTOR_VELO = 20
 INITIAL_POSITIONS = {1: 2048, 2: 1800, 4: 2700, 5: 2780}
@@ -27,14 +27,16 @@ NUM_POS_BINS = 10  # For creating feature vector
 MOVE_AMOUNT = math.floor((MOTOR_LIM_2 - MOTOR_LIM_1)/NUM_POS_BINS) # Amount to move when taking an action (in motor encoder units)
 GOAL_POS = random.randint(MOTOR_LIM_1, MOTOR_LIM_2)
 agent_params = {
-    # "actor_alpha": 0.5,
-    # "critic_alpha": 0.8,
-    # "avg_reward_alpha": 0.1,
-    "actor_alpha": 0.25,
-    "critic_alpha": 1.0,
-    "avg_reward_alpha": 0.0156,
+    "feature_vector_length": NUM_POS_BINS,
     "num_actions": 3,   # decrease position [0], stay [1], or increase position [2]
-    "feature_vector_length": NUM_POS_BINS
+    "avg_reward_alpha": 0.1,
+    "critic_alpha": 0.9,
+    "actor_alpha": 0.7
+    
+    # "avg_reward_alpha": 0.01,
+    # "critic_alpha": 0.3,
+    # "actor_alpha": 0.1,
+    # "initial_avg_reward": -0.5
     }
 
 # Plotting:
@@ -56,7 +58,7 @@ running = True      # Control flag to stop threads
 def get_paused(): return is_paused
 def get_running(): return running
 
-# --- Set up robot, learner, and visualizer  -------------------------------------------------------
+# --- Set up robot, learner, and visualizer  ---------------------------------------------------`` ----
 with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm:
     learner = ACLearner_Discrete(agent_params)
     plotter = ACVisualizer(visualizer_params)
@@ -64,12 +66,12 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm:
     # Define keyboard event handler
     def on_press(key):
         global is_paused
-        # Spacebar to Pause/Resume
-        if key == keyboard.Key.space:
+        # ` key to Pause/Resume
+        if key.char == '`':  
             is_paused = not is_paused
             print(f"*** {'PAUSED' if is_paused else 'RESUMED'} ***")
             if is_paused:
-                # Stop motor where it is
+                # Stop motor where `it is
                 p, _, _ = arm.read_from_motor(MOTOR_ID)
                 arm.set_goal_pos(MOTOR_ID, p)
 

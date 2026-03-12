@@ -53,8 +53,9 @@ class ACVisualizer:
         self.ax_pos = self.fig.add_subplot(gs[0, :])
         self.line_pos, = self.ax_pos.plot(list(self.pos_hist), color='blue', label='Position')
         self.ax_pos.set_xlim([0, self.window_size])
+        self.ax_pos.set_xlabel('Time Steps (~0.5s)', fontsize=14)
         self.ax_pos.set_ylim(self.pos_range)
-        self.ax_pos.set_ylabel('Position')
+        self.ax_pos.set_ylabel('Position', fontsize=14)
         if self.goal_pos is not None:
             self.ax_pos.axhline(y=self.goal_pos, color='mediumvioletred', linestyle='--', label='Secret Goal Position')
         self.ax_pos.legend(loc='upper left')
@@ -65,8 +66,9 @@ class ACVisualizer:
         self.line_reward, = self.ax_reward.plot(list(self.reward_hist), color='green', label='Current Reward')
         
         self.ax_reward.set_xlim([0, self.window_size])
+        self.ax_reward.set_xlabel('Time Steps (~0.5s)', fontsize=14)
         self.ax_reward.set_ylim(self.reward_range)
-        self.ax_reward.set_ylabel('Reward')
+        self.ax_reward.set_ylabel('Reward', fontsize=14)
         self.ax_reward.legend(loc='upper left')
 
         # Bottom Right: Action Distribution
@@ -75,7 +77,7 @@ class ACVisualizer:
             num_actions = len(self.action_labels) if self.action_labels else 2
             self.bar_probs = self.ax_probs.bar(range(num_actions), [0]*num_actions, color='purple', alpha=0.6)
             self.ax_probs.set_ylim(0, 1.1)
-            self.ax_probs.set_ylabel('Action Probability')
+            self.ax_probs.set_ylabel('Action Probability', fontsize=14)
             if self.action_labels:
                 self.ax_probs.set_xticks(range(num_actions))
                 self.ax_probs.set_xticklabels(self.action_labels)
@@ -92,9 +94,9 @@ class ACVisualizer:
             # Initialize a vertical line for the sampled action
             self.v_line = self.ax_probs.axvline(x=0, color='orange', linestyle='--', alpha=0.8, label='Sampled Action')
             self.ax_probs.set_xlim(self.action_range)
-            self.ax_probs.set_xlabel('Position Adjustment')
+            self.ax_probs.set_xlabel('Position Adjustment Multiplier', fontsize=14)
             self.ax_probs.set_ylim(0, 1.0)
-            self.ax_probs.set_ylabel('Probability Density')
+            self.ax_probs.set_ylabel('Probability Density', fontsize=14)
             self.ax_probs.legend(loc='upper left')
 
         self.fig.tight_layout()
