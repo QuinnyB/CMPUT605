@@ -9,6 +9,7 @@ Written by: Quinn Boser, with assistance from Google Gemini
 March 2026
 '''
 
+import time
 import numpy as np
 from collections import deque
 from scipy.stats import norm
@@ -42,8 +43,12 @@ class ACVisualizer:
         self.reward_hist = deque([np.nan] * self.window_size, maxlen=self.window_size)
         self.avg_reward_hist = deque([np.nan] * self.window_size, maxlen=self.window_size)
 
+        # Tracking variables
         self.current_action_data = None
         self.sampled_action = None # To store the specific action taken
+        self.step_count = 0
+        self.avg_step_time = 0.0
+        self.start_time = time.perf_counter() # Initialize timer
 
         plt.ion()
         self.fig = plt.figure(figsize=(12, 8))
@@ -53,7 +58,7 @@ class ACVisualizer:
         self.ax_pos = self.fig.add_subplot(gs[0, :])
         self.line_pos, = self.ax_pos.plot(list(self.pos_hist), color='blue', label='Position')
         self.ax_pos.set_xlim([0, self.window_size])
-        self.ax_pos.set_xlabel('Time Steps (~0.5s)', fontsize=14)
+        self.ax_pos.set_xlabel('Time Steps', fontsize=12)
         self.ax_pos.set_ylim(self.pos_range)
         self.ax_pos.set_ylabel('Position', fontsize=14)
         if self.goal_pos is not None:
@@ -66,7 +71,7 @@ class ACVisualizer:
         self.line_reward, = self.ax_reward.plot(list(self.reward_hist), color='green', label='Current Reward')
         
         self.ax_reward.set_xlim([0, self.window_size])
-        self.ax_reward.set_xlabel('Time Steps (~0.5s)', fontsize=14)
+        self.ax_reward.set_xlabel('Time Steps', fontsize=12)
         self.ax_reward.set_ylim(self.reward_range)
         self.ax_reward.set_ylabel('Reward', fontsize=14)
         self.ax_reward.legend(loc='upper left')
@@ -77,7 +82,7 @@ class ACVisualizer:
             num_actions = len(self.action_labels) if self.action_labels else 2
             self.bar_probs = self.ax_probs.bar(range(num_actions), [0]*num_actions, color='purple', alpha=0.6)
             self.ax_probs.set_ylim(0, 1.1)
-            self.ax_probs.set_ylabel('Action Probability', fontsize=14)
+            self.ax_probs.set_ylabel('Action Probability', fontsize=12)
             if self.action_labels:
                 self.ax_probs.set_xticks(range(num_actions))
                 self.ax_probs.set_xticklabels(self.action_labels)
@@ -94,12 +99,13 @@ class ACVisualizer:
             # Initialize a vertical line for the sampled action
             self.v_line = self.ax_probs.axvline(x=0, color='orange', linestyle='--', alpha=0.8, label='Sampled Action')
             self.ax_probs.set_xlim(self.action_range)
-            self.ax_probs.set_xlabel('Position Adjustment Multiplier', fontsize=14)
+            self.ax_probs.set_xlabel('Position Adjustment Multiplier', fontsize=12)
             self.ax_probs.set_ylim(0, 1.0)
             self.ax_probs.set_ylabel('Probability Density', fontsize=14)
             self.ax_probs.legend(loc='upper left')
 
-        self.fig.tight_layout()
+        # Adjust layout to make room for the internal suptitle
+        self.fig.tight_layout(rect=[0, 0.03, 1, 0.95])
 
     def update_data(self, pos, reward, avg_reward, action_data, sampled_action):
         """
@@ -117,9 +123,18 @@ class ACVisualizer:
         self.avg_reward_hist.append(avg_reward)
         self.current_action_data = action_data
         self.sampled_action = sampled_action
+        self.step_count += 1
+        elapsed = time.perf_counter() - self.start_time
+        self.avg_step_time = self.avg_step_time + (elapsed - self.avg_step_time) / self.step_count
+        self.start_time = time.perf_counter()  # Reset timer for next step
+
 
     def draw(self):
         if not self.is_open(): return
+
+        # Update global title with Step Count and Step Time
+        self.fig.suptitle(f"Training Progress | Total Steps: {self.step_count} | Avg Step Time: {self.avg_step_time*1000:.2f} ms", 
+                          fontsize=14)
 
         # Update standard lines
         self.line_pos.set_ydata(list(self.pos_hist))

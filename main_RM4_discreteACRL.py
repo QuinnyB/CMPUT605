@@ -1,7 +1,7 @@
 ''' 
 Main code for CMPUT 605 Robot Module 4 - Objectibve 1: Discrete Actor-Critic Learning
 Written by: Quinn Boser, with assistance from Google Gemini 
-Feb. 2026
+March 2026
 '''
 
 import math
@@ -14,7 +14,7 @@ from RM4_helperFunctions import *
 
 # --- Configuration -----------------------------------------------------------------------------
 # Robot arm:
-COMM_PORT = 'COM13'     # Lab Mini Bento likes port 13, home likes 15
+COMM_PORT = 'COM15'     # Lab Mini Bento likes port 13, home likes 15
 BAUDRATE = 1000000
 MOTOR_VELO = 20
 INITIAL_POSITIONS = {1: 2048, 2: 1800, 4: 2700, 5: 2780}
@@ -32,11 +32,6 @@ agent_params = {
     "avg_reward_alpha": 0.1,
     "critic_alpha": 0.9,
     "actor_alpha": 0.7
-    
-    # "avg_reward_alpha": 0.01,
-    # "critic_alpha": 0.3,
-    # "actor_alpha": 0.1,
-    # "initial_avg_reward": -0.5
     }
 
 # Plotting:
@@ -122,7 +117,7 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm:
         plotter.draw()
 
         # Wait f or motor to get to position and human to process visualization before next loop iteration
-        time.sleep(wait_time + 0.5)
+        time.sleep(wait_time + 0.25)
         print("\n")
     
     running = False

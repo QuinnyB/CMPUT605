@@ -1,5 +1,5 @@
 '''
-TD Learner class for CMPUT 605 Robot Module 4
+Actor-critic Learner class for CMPUT 605 Robot Module 4
 Written by: Quinn Boser, with assistance from Google Gemini 
 March 2026
 '''
