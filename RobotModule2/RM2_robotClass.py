@@ -11,7 +11,7 @@ import time
 import math
 import random
 from dynamixel_sdk import *
-from helperFunctions import to_signed_32, to_signed_16 
+from RobotModule2.RM2_helperFunctions import to_signed_32, to_signed_16 
 
 class MiniBento:
     def __init__(self, port_name, baudrate, motor_velo, iniital_positions):

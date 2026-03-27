@@ -6,11 +6,11 @@ Feb. 2026
 
 import math
 import threading
-from robotClass import MiniBento
-from learnerClass import TDLearner
-from visualizerClass import TDVisualizer
+from RM2_robotClass import MiniBento
+from RM2_learnerClass import TDLearner
+from RM2_visualizerClass import TDVisualizer
 from pynput import keyboard
-from helperFunctions import *
+from RM2_helperFunctions import *
 
 # --- Configuration -----------------------------------------------------------------------------
 # Robot arm:
