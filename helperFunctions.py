@@ -82,26 +82,46 @@ def bin(value, num_bins):
         bin_index = num_bins - 1
     return bin_index
 
+# Generic one-hot featurization function for multiple signals:
 def featurize_grid(signals, ranges, bin_counts):
     # Input:
     #   signals:    List of values [s1, s2, ...]
     #   ranges:     List of (min, max) tuples [(min1, max1), ...]
     #   bin_counts: List of integers [bins1, bins2, ...]
     indices = [] 
-    # 1. Calculate discrete bin index for each signal
+    # Calculate discrete bin index for each signal
     for val, (s_min, s_max), num_bins in zip(signals, ranges, bin_counts):
         # Normalize signal to [0, 1]
         val_norm = normalize(val, s_min, s_max)
         indices.append(bin(val_norm, num_bins)) 
-    # 2. Calculate the flattened 1D index
-    # Logic: index = i1*(bins2*bins3...) + i2*(bins3...) + ... + in
+    # Calculate the flattened 1D index
+    # Logic: index = i0*(bins1*bins2*...) + i1*(bins2*...) + ... +  in
     flat_idx = 0
     multiplier = 1
     for i in reversed(range(len(indices))):
         flat_idx += indices[i] * multiplier
         multiplier *= bin_counts[i]    
-    # 3. Create the sparse vector
+    # Create the vector
     total_size = np.prod(bin_counts)
     x = np.zeros(total_size, dtype=int)
     x[flat_idx] = 1 
     return x, flat_idx, indices
+
+# Function to check if the sampled action matches the physical keyboard input
+def check_action_match(action_index, pressed_key, action_key_map):
+    # Input:
+    #     action_index (int): The index (0, 1, 2) from the learner.
+    #     pressed_key (str): The key currently held ('a', 's', 'd') or None.
+    #     action_key_map (dict): The mapping dictionary.    
+    # Returns:
+    #     bool: True if they match, False otherwise.
+    # If no key is pressed, it's automatically not a match
+    if pressed_key is None:
+        return False
+    # Get a list of keys from the dict: ['a', 's', 'd']
+    keys = list(action_key_map.keys())
+    # Safety check for index out of bounds
+    if action_index < 0 or action_index >= len(keys):
+        return False
+    # Check if the key at that index matches the pressed key
+    return keys[action_index] == pressed_key

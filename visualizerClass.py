@@ -14,15 +14,16 @@ class ACVisualizer:
         Assumes visualizer_dict contains:
         {
             "window_size": int, Number of recent data points to display
+            "max_EMG": float or None, The maximum expected EMG magnitude for scaling the polar plot
             "reward_range": tuple or None, The min/max reward values for the Y-axis (e.g., (-1, 0))
             "action_mode": str, 'discrete' or 'continuous' - whether the action plot should show discrete probabilities or a continuous distribution
             "action_key_map": dict, Mapping of keys to action names for discrete mode (e.g., {'a': 'Close', 's': 'Rest', 'd': 'Open'})
             "action_range": tuple or None, The min/max action values for the continuous X-axis.
         }
         """
-        self.window_size = visualizer_dict.get("window_size")
-        self.goal_pos = visualizer_dict.get("goal_pos")
-        self.pos_range = visualizer_dict.get("pos_range")
+        self.window_size = visualizer_dict.get("window_size", 100)
+        self.max_EMG = visualizer_dict.get("max_EMG", 100)
+        self.show_feature_idx = visualizer_dict.get("show_feature_idx", False)
         self.reward_range = visualizer_dict.get("reward_range")
         self.mode = visualizer_dict.get("action_mode")
         self.action_key_map = visualizer_dict.get("action_key_map")
@@ -35,7 +36,6 @@ class ACVisualizer:
         plt.rcParams['keymap.fullscreen'] = []
 
         # History buffers
-        self.pos_hist = deque([np.nan] * self.window_size, maxlen=self.window_size)
         self.reward_hist = deque([np.nan] * self.window_size, maxlen=self.window_size)
         self.avg_reward_hist = deque([np.nan] * self.window_size, maxlen=self.window_size)
 
@@ -50,18 +50,30 @@ class ACVisualizer:
         self.fig = plt.figure(figsize=(12, 8))
         gs = self.fig.add_gridspec(2, 2)
 
-        # 1. Top Plot: Keyboard Indicator (Replaces Position Plot)
-        self.ax_key = self.fig.add_subplot(gs[0, :])
+        # Top Left: Keyboard Indicator
+        self.ax_key = self.fig.add_subplot(gs[0, 0])
         self.ax_key.set_xticks([])
         self.ax_key.set_yticks([])
         self.ax_key.set_facecolor('#f0f0f0') # Light grey background for the status box
         # Large centered text for Key and Action
         self.text_key = self.ax_key.text(0.5, 0.65, "Use Keyboard to Indicate Intended Action", 
-                                        ha='center', va='center', fontsize=24, fontweight='bold')
+                                        ha='center', va='center', fontsize=14, fontweight='bold')
         self.text_action = self.ax_key.text(0.5, 0.35, " | ".join([f"'{k}' = {v}" for k, v in self.action_key_map.items()]), 
-                                           ha='center', va='center', fontsize=20, color='blue', fontweight='bold')
+                                           ha='center', va='center', fontsize=12, color='blue', fontweight='bold')
         self.ax_key.set_title("User Keyboard Input Status")
 
+        # Top Right: EMG Phasor
+        self.ax_polar = self.fig.add_subplot(gs[0, 1], projection='polar')
+        self.ax_polar.set_xticklabels([])   # Remove 0, 45, 90... degree labels
+        self.ax_polar.grid(True, alpha=0.3) # Make grid lines lighter
+        self.line_phasor, = self.ax_polar.plot([0, 0], [0, 0], color='red', lw=3, marker='o')
+        self.ax_polar.set_ylim(0, self.max_EMG)
+        self.ax_polar.set_title("EMG Phasor", pad=15)
+        if self.show_feature_idx:
+            self.text_feature = self.ax_polar.text(1.3, 0.0, "Feature: 0", 
+                                                   ha='right', va='bottom', fontsize=12, 
+                                                   color='darkred', transform=self.ax_polar.transAxes)
+        
         # Bottom Left: Reward
         self.ax_reward = self.fig.add_subplot(gs[1, 0])
         self.line_rewardAvg, = self.ax_reward.plot(list(self.avg_reward_hist), color='lightgreen', alpha=0.9, label='Avg Reward')
@@ -104,10 +116,12 @@ class ACVisualizer:
         # Adjust layout to make room for the internal suptitle
         self.fig.tight_layout(rect=[0, 0.03, 1, 0.95])
 
-    def update_data(self, key, reward, avg_reward, action_data, sampled_action):
+    def update_data(self, key, emg_mag, emg_angle, reward, avg_reward, action_data, sampled_action, feature_index=None):
         """
         Args:
             key: The character currently pressed (e.g., 'a', 's', 'd') or None
+            emg_mag: The magnitude of the EMG phasor for scaling the polar plot
+            emg_angle: The angle of the EMG phasor in degrees for the polar plot
             reward, avg_reward: Scalar values
             action_data: 
                 - If discrete: List of probabilities [p1, p2, ...]
@@ -115,18 +129,21 @@ class ACVisualizer:
             sampled_action:
                 - If discrete: Integer index of the action taken
                 - If continuous: Float value of the action taken
-        
+            feature_index: Integer index of the current feature vector
+
         """
+        self.emg_mag = emg_mag
+        self.emg_angle = np.radians(emg_angle)
         self.reward_hist.append(reward)
         self.avg_reward_hist.append(avg_reward)
         self.current_key = key
         self.current_action_data = action_data
         self.sampled_action = sampled_action
+        self.feature_index = feature_index
         self.step_count += 1
         elapsed = time.perf_counter() - self.start_time
         self.avg_step_time = self.avg_step_time + (elapsed - self.avg_step_time) / self.step_count
         self.start_time = time.perf_counter()  # Reset timer for next step
-
 
     def draw(self):
         if not self.is_open(): return
@@ -145,6 +162,14 @@ class ACVisualizer:
             self.text_action.set_text(" | ".join([f"'{k}' = {v}" for k, v in self.action_key_map.items()]))
             self.ax_key.set_facecolor('#f0f0f0')
 
+        # Update EMG Polar Plot
+        # set_xdata is the angle (theta) and set_ydata is the radius (r)
+        self.line_phasor.set_xdata([0, self.emg_angle])
+        self.line_phasor.set_ydata([0, self.emg_mag])
+        # Update Feature Index Text
+        if self.show_feature_idx:
+            self.text_feature.set_text(f"Feature Index: {self.feature_index}")
+        
         # Update Reward lines
         self.line_reward.set_ydata(list(self.reward_hist))
         self.line_rewardAvg.set_ydata(list(self.avg_reward_hist))

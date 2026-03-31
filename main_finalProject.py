@@ -3,17 +3,19 @@
 '''
 
 import time
-import math
-import random
 from robotClass import MiniBento
-from myoClass import MyoArmband, EMGProcessor
+from myoClass import MyoArmband
+from learnerClass import ACLearner_Discrete
 from visualizerClass import ACVisualizer
 from keyboardHandlerClass import KeyPressHandler
 from helperFunctions import *
 
 # --- Configuration -----------------------------------------------------------------------------
+# Myo Armband:
+MAV_WINDOW = 40        # Window size for moving average of EMG signals (in number of samples)
+
 # Robot arm:
-COMM_PORT = 'COM13'     # Lab Mini Bento likes port 13, home likes 15
+COMM_PORT = 'COM15'     # Lab Mini Bento likes port 13, home likes 15
 BAUDRATE = 1000000
 MOTOR_VELO = 20
 INITIAL_POSITIONS = {1: 2048, 2: 1800, 4: 2700, 5: 2780}
@@ -22,12 +24,26 @@ HAND_POS_1 = 1750       # Hand closed position (encoder value)
 HAND_POS_2 = 2650       # Hand open position (encoder value)
 
 # Learning:
-
+EMG_MAG_RANGE = (0, 100)   # Expected range of EMG phasor magnitude (for featurization)
+EMG_ANGLE_RANGE = (-180, 180)  # Expected range of EMG phasor angle (for featurization)
+RANGES = [EMG_MAG_RANGE, EMG_ANGLE_RANGE]  # For featurization
+NUM_MAG_BINS = 3        # Number of bins for EMG phasor magnitude
+NUM_PHASOR_BINS = 8     # Number of bins for EMG phasor angle
+BIN_COUNTS = [NUM_MAG_BINS, NUM_PHASOR_BINS]  # For featurization
+agent_params = {
+    "feature_vector_length": np.prod(BIN_COUNTS),
+    "num_actions": 3,   # close [0], rest [1], or open [2]
+    "avg_reward_alpha": 0.1,
+    "critic_alpha": 0.9,
+    "actor_alpha": 0.7
+}
+reward_next = 0.0   # Initialize reward for first loop (no action taken yet)
 
 # Plotting:
 visualizer_params = {
     "window_size": 100,
-    "reward_range": [-1.0, 0.2],
+    "reward_range": [-1.0, 1.0],
+    "show_feature_idx": True,
     "action_mode": 'discrete',
     "action_key_map": {
         'a': 'CLOSE HAND',
@@ -37,50 +53,59 @@ visualizer_params = {
 }
 
 # --- Set up robot, learner, and visualizer  -------------------------------------------------------
-with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm, MyoArmband() as myo:
-    viz = ACVisualizer(visualizer_params)
+with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm, MyoArmband(MAV_WINDOW) as myo:
     key_handler = KeyPressHandler(arm, MOTOR_ID)
-    emg_processor = EMGProcessor()
-
-    time.sleep(0.5)  # Delay to let arm get into initial position
+    learner = ACLearner_Discrete(agent_params)
+    viz = ACVisualizer(visualizer_params)
+    
+    time.sleep(0.5)     # Delay to let arm get into initial position
 
     try:
         while viz.is_open():
-            # Get the current key state ('a', 's', 'd', or None)
+            if key_handler.is_paused:
+                viz.process_events() # Handle window events
+                continue
+
+            # Get active key ('a', 's', 'd', or None)
             active_key = key_handler.get_key()
+            # Turn off learning mode if no key is active
+            if active_key is None:
+                learning = False
+            else:
+                learning = True
 
-            # Read and process data from myo
-            myo_data = myo.get_data()
-            emg_mav = emg_processor.process_frame(myo_data['emg'])
-            emg_phasor_mag, emg_phasor_angle = get_phasor(emg_mav)
-            print(f"EMG Phasor Magnitude: {emg_phasor_mag:.2f}, Angle: {emg_phasor_angle:.2f} degrees")
+            # Read and process data from myo (observe state)
+            emg_mav, _, _, _ = myo.get_data()
+            emg_mag, emg_angle = get_phasor(emg_mav)
+            print(f"EMG Phasor Magnitude: {emg_mag:.2f}, Angle: {emg_angle:.2f} degrees")
 
-            # Create feature vector:
-            feature_vector, flat_index, bin_indices = featurize_grid([emg_phasor_mag, emg_phasor_angle], [(0, 200), (-180, 180)], [3, 8])     
+            # Create feature vector X:
+            x_next, flat_index, bin_indices = featurize_grid([emg_mag, emg_angle], RANGES, BIN_COUNTS)     
             print(f"Feature index: {flat_index}, Bin Indices: {bin_indices}")
 
-            # 2. Run your Actor-Critic Logic
-            # (Example dummy data)
-            reward = 1.0 if active_key == 'a' else 0.0
-            avg_reward = 0.5 
-            probs = [0.1, 0.8, 0.1] # Policy output
-            sampled_action = 1
+            # Update learner with reward from previous action (after first action)
+            if learner.last_action is not None:
+                match = check_action_match(action, active_key, viz.action_key_map)
+                reward_next = 1.0 if match else -1.0
+                learner.update(reward_next, x_next, learning_enabled=learning)
 
-            # 
-            if active_key == 'a':
+            # Get next action from learner and take action on robot
+            action = learner.get_next_action()
+            if action == 0:
                 arm.set_goal_pos(MOTOR_ID, HAND_POS_1)
-            elif active_key == 's':
+            elif action == 1:
                 arm.stop_motor(MOTOR_ID)
-            elif active_key == 'd':
+            elif action == 2:
                 arm.set_goal_pos(MOTOR_ID, HAND_POS_2)
         
-            # 3. Update Visualizer
-            # The visualizer will now show 'NO KEY PRESSED' if active_key is None
-            viz.update_data(active_key, reward, avg_reward, probs, sampled_action)
+            # Update Visualizer
+            viz.update_data(active_key, emg_mag, emg_angle, reward_next, 
+                            learner.avg_reward, learner.softmax_probs, learner.last_action,
+                            feature_index=flat_index)
             viz.draw()
         
             # Small sleep 
-            time.sleep(0.02)
+            time.sleep(0.2)
 
     except KeyboardInterrupt:
         print("Experiment stopped.")
