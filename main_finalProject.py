@@ -1,5 +1,8 @@
 '''
-
+Main code for CMPUT 605 Final Project Interim Report 1
+Exploration of ACRL for Myoelectric Control of a 3D Printed Robot Arm
+Written by: Quinn Boser, with assistance from Google Gemini
+April 2026
 '''
 
 import time
@@ -42,7 +45,7 @@ reward_next = 0.0   # Initialize reward for first loop (no action taken yet)
 # Plotting:
 visualizer_params = {
     "window_size": 100,
-    "reward_range": [-1.0, 1.0],
+    "reward_range": [-1.2, 1.2],
     "show_feature_idx": True,
     "action_mode": 'discrete',
     "action_key_map": {
@@ -86,7 +89,10 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm, MyoAr
             # Update learner with reward from previous action (after first action)
             if learner.last_action is not None:
                 match = check_action_match(action, active_key, viz.action_key_map)
-                reward_next = 1.0 if match else -1.0
+                if learning:
+                    reward_next = 1.0 if match else -1.0
+                else:
+                    reward_next = 0.0
                 learner.update(reward_next, x_next, learning_enabled=learning)
 
             # Get next action from learner and take action on robot

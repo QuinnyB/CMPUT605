@@ -1,5 +1,7 @@
 '''
-
+Visualizer class for CMPUT 605 Final Project
+Written by: Quinn Boser, with assistance from Google Gemini
+April 2026
 '''
 import time
 import numpy as np

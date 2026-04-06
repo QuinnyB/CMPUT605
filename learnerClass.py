@@ -1,5 +1,5 @@
 '''
-Actor-critic Learner class for CMPUT 605 Robot Module 4
+Actor-critic Learner class for CMPUT 605 Robot Module 4 and Final Project
 Written by: Quinn Boser, with assistance from Google Gemini 
 March 2026
 '''
