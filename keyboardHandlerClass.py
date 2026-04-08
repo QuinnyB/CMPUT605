@@ -9,6 +9,7 @@ class KeyPressHandler:
         self.is_paused = False   # For '`' toggle
         self.running = True
         self.space_pressed = False
+        self.recalibrate_requested = False
         
         # Start the listener
         self.listener = keyboard.Listener(on_press=self.on_press, on_release=self.on_release)
@@ -29,7 +30,10 @@ class KeyPressHandler:
                     # Emergency stop: read current pos and set as goal
                     p, _, _ = self.robot.read_from_motor(self.motor_id)
                     self.robot.set_goal_pos(self.motor_id, p)
-            # a/s/d keys to indicate intended action
+            # 'r' key to recalibrate IMU control
+            if k == 'r':
+                self.recalibrate_requested = True 
+            # a/s/d keys to indicate intended action for learner
             elif k in ['a', 's', 'd']:
                 self.current_key = k       
         except AttributeError:

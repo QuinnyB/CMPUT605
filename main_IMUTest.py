@@ -11,10 +11,10 @@ from helperFunctions import *
 EMG_MAV_WINDOW = 40        # Window size for moving average of EMG signals (in number of samples)
 IMU_MAV_WINDOW = 10        # Window size for moving average of IMU signals (in number of samples)
 calibration_steps = [
-    ("Internally rotate shoulder to limit", "int_rot", 0),
-    ("Externally rotate shoulder to limit", "ext_rot", 0),
-    ("Flex your elbow to limit",           "flex",    2),
-    ("Extend your elbow to limit",          "ext",     2)
+    ("Internally rotate shoulder to comfortable limit", "int_rot", 0),
+    ("Externally rotate shoulder to comfortable limit", "ext_rot", 0),
+    ("Flex your elbow to comfortable limit",           "flex",    2),
+    ("Extend your elbow to comfortable limit",          "ext",     2)
 ]
 imu_cal_angles = {
     "int_rot": 0,
@@ -43,7 +43,7 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm, MyoAr
     # Calibrate IMU in neutral arm position
     print("\n" + "="*50)
     print("IMU CALIBRATION STEP 1")
-    print("Hold your arm in the 'Neutral' position. Press SPACEBAR to calibrate.")
+    print("Hold your arm in the 'Neutral' position. Press SPACEBAR.")
     print("="*50 + "\n")
     while not key_handler.space_pressed: time.sleep(0.1)
     myo.calibrate_imu()
@@ -62,13 +62,11 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm, MyoAr
     if imu_cal_angles["ext_rot"] < imu_cal_angles["int_rot"]:
         sho_mult = -1
         imu_cal_angles["int_rot"], imu_cal_angles["ext_rot"] = -imu_cal_angles["int_rot"], -imu_cal_angles["ext_rot"]
-    else:
-        sho_mult = 1
+    else:   sho_mult = 1
     if imu_cal_angles["flex"] < imu_cal_angles["ext"]:
         elb_mult = -1
         imu_cal_angles["flex"], imu_cal_angles["ext"] = -imu_cal_angles["flex"], -imu_cal_angles["ext"]
-    else:
-        elb_mult = 1
+    else:   elb_mult = 1
 
     while True:
         if not key_handler.get_paused():
@@ -85,8 +83,8 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm, MyoAr
             
             print(f"Target SHO: {target_s:.0f}, Target ELB: {target_e:.0f}")
 
-            arm.set_goal_pos(1, int(target_s))
-            arm.set_goal_pos(2, int(target_e))
+            arm.set_goal_pos(SHO_ID, int(target_s))
+            arm.set_goal_pos(ELB_ID, int(target_e))
 
 
         time.sleep(0.1)

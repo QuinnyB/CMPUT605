@@ -5,6 +5,7 @@ Written by: Quinn Boser, with assistance from Google Gemini
 Mar. 2026
 '''
 
+from cProfile import label
 import threading
 import time
 import numpy as np
@@ -103,6 +104,52 @@ class MyoArmband:
             quat = self.latest_quat
         R_raw = quat_to_mat(quat[0], quat[1], quat[2], quat[3])
         self.calibration_matrix = R_raw
+
+    def run_interactive_calibration(self, key_handler, calibration_steps):
+        """
+        Runs multi-step interactive calibration sequence for shoulder and elbow control.
+        Returns: (imu_cal_angles, joint_multipliers)
+        """
+        imu_cal_angles = {}
+
+        # Step 1: Neutral
+        print("\n" + "="*50 + "\nIMU CALIBRATION\n" + "="*50)
+        print("\n" + "="*50 + "\nSTEP 1: Hold your arm in 'Neutral' position and press SPACEBAR.\n" + "="*50)
+        key_handler.reset_space()
+        while not key_handler.space_pressed: time.sleep(0.1)
+        self.calibrate_imu()
+        key_handler.reset_space()
+
+        # Steps 2-N
+        for i, (msg, key, idx, joint) in enumerate(calibration_steps, start=2):
+            print(f"\n" + "="*50 + f"\nSTEP {i}: {msg}\nHold position and press SPACE\n" + "="*50)
+            while not key_handler.space_pressed: time.sleep(0.1)
+            _, angles, _, _, _ = self.get_data() 
+            imu_cal_angles[key] = angles[idx]
+            print(f"Recorded {key}: {imu_cal_angles[key]:.2f}°")
+            key_handler.reset_space()
+
+        # Check for inversions and create multipliers for each joint
+        joint_multipliers = {}
+        unique_joints = list(set(step[3] for step in calibration_steps))
+        for joint in unique_joints:
+            # Get the two calibration steps associated with this specific joint
+            joint_steps = [s for s in calibration_steps if s[3] == joint]
+            if len(joint_steps) >= 2:
+                # Assume the first entry is 'Min' and second is 'Max'
+                key_min = joint_steps[0][1]
+                key_max = joint_steps[1][1]
+            
+                # If the 'Max' position actually resulted in a lower angle than 'Min', flip it
+                if imu_cal_angles[key_max] < imu_cal_angles[key_min]:
+                    joint_multipliers[joint] = -1
+                    # Flip the stored limits so the interp logic stays [Min, Max]
+                    imu_cal_angles[key_min], imu_cal_angles[key_max] = -imu_cal_angles[key_min], -imu_cal_angles[key_max]
+                else:
+                    joint_multipliers[joint] = 1
+
+        print("\nCalibration complete.")
+        return imu_cal_angles, joint_multipliers
     
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.running = False

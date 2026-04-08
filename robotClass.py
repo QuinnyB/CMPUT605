@@ -45,6 +45,10 @@ class MiniBento:
             self.packetHandler.write4ByteTxRx(self.portHandler, m_id, self.addr_goal_position, self.initial_positions[m_id])
         print("Mini Bento Ready.")
         return self
+    
+    def return_to_initial_positions(self):
+        for m_id in self.motor_ids:
+            self.packetHandler.write4ByteTxRx(self.portHandler, m_id, self.addr_goal_position, self.initial_positions[m_id])
 
     def read_from_motor(self, motor_id):
         # Read current position, velocity, and load (current draw) from motor
