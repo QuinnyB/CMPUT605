@@ -8,15 +8,19 @@ class KeyPressHandler:
         self.current_key = None  # For 'a', 's', 'd'
         self.is_paused = False   # For '`' toggle
         self.running = True
+        self.space_pressed = False
         
         # Start the listener
         self.listener = keyboard.Listener(on_press=self.on_press, on_release=self.on_release)
         self.listener.start()
 
     def on_press(self, key):
+        # Hand spacebar press:
+        if key == keyboard.Key.space:
+            self.space_pressed = True
+            return  
         try:
             k = key.char
-        
             # ` Key to Pause/Resume
             if k == '`':
                 self.is_paused = not self.is_paused
@@ -25,11 +29,9 @@ class KeyPressHandler:
                     # Emergency stop: read current pos and set as goal
                     p, _, _ = self.robot.read_from_motor(self.motor_id)
                     self.robot.set_goal_pos(self.motor_id, p)
-
             # a/s/d keys to indicate intended action
             elif k in ['a', 's', 'd']:
-                self.current_key = k
-                
+                self.current_key = k       
         except AttributeError:
             # Handles special keys (like Shift/Ctrl) that don't have .char
             pass
@@ -47,6 +49,9 @@ class KeyPressHandler:
 
     def get_paused(self):
         return self.is_paused
+    
+    def reset_space(self):
+        self.space_pressed = False
     
     def stop(self):
         self.running = False

@@ -125,3 +125,30 @@ def check_action_match(action_index, pressed_key, action_key_map):
         return False
     # Check if the key at that index matches the pressed key
     return keys[action_index] == pressed_key
+
+# Convert quaternion to rotation matrix:
+def quat_to_mat(w, x, y, z):
+    # Check that the input is normalized
+    norm = math.sqrt(w*w + x*x + y*y + z*z)
+    if norm != 1.0:
+        w /= norm
+        x /= norm
+        y /= norm
+        z /= norm
+    # Standard formula for conversion
+    return np.array([
+        [1 - 2*y**2 - 2*z**2, 2*x*y - 2*z*w,     2*x*z + 2*y*w],
+        [2*x*y + 2*z*w,       1 - 2*x**2 - 2*z**2, 2*y*z - 2*x*w],
+        [2*x*z - 2*y*w,       2*y*z + 2*x*w,       1 - 2*x**2 - 2*y**2]
+    ])
+
+# Convert rotation matrix to ZXY moving axes angles:
+def mat_to_ZXY(mat):
+    r11, r12, r13 = mat[0]
+    r21, r22, r23 = mat[1]
+    r31, r32, r33 = mat[2]
+    x_angle = math.atan2(r32, math.sqrt(r31**2 + r33**2))
+    cosx = math.cos(x_angle)
+    y_angle = math.atan2(r31/cosx, r33/cosx)
+    z_angle = math.atan2(r12/cosx, r22/cosx)
+    return np.degrees([z_angle, x_angle, y_angle])

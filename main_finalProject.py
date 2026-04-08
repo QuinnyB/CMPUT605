@@ -15,7 +15,8 @@ from helperFunctions import *
 
 # --- Configuration -----------------------------------------------------------------------------
 # Myo Armband:
-MAV_WINDOW = 40        # Window size for moving average of EMG signals (in number of samples)
+EMG_MAV_WINDOW = 40        # Window size for moving average of EMG signals (in number of samples)
+IMU_MAV_WINDOW = 10        # Window size for moving average of IMU signals (in number of samples)
 
 # Robot arm:
 COMM_PORT = 'COM15'     # Lab Mini Bento likes port 13, home likes 15
@@ -56,7 +57,7 @@ visualizer_params = {
 }
 
 # --- Set up robot, learner, and visualizer  -------------------------------------------------------
-with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm, MyoArmband(MAV_WINDOW) as myo:
+with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm, MyoArmband(EMG_MAV_WINDOW, IMU_MAV_WINDOW) as myo:
     key_handler = KeyPressHandler(arm, MOTOR_ID)
     learner = ACLearner_Discrete(agent_params)
     viz = ACVisualizer(visualizer_params)

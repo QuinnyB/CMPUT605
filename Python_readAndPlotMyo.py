@@ -1,7 +1,7 @@
 '''
 Sample code for reading and plotting raw EMG data from a Myo armband. 
 Required libraries: pyomyo, matplotlib
-NOTE: You must not be connected to the Myo armband with any other software (e.g. Myo Connect) for this to work
+NOTE: You must NOT be connected to the Myo armband with any other software (e.g. Myo Connect) for this to work
     Right-click the Myo icon in your taskbar and select Quit or Exit Myo Connect before running this code.
 Written by Google Gemini (with prompts from Quinn Boser)
 March 2026
