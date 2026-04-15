@@ -50,7 +50,13 @@ agent_params = {
     "num_actions": 3,   # close [0], rest [1], or open [2]
     "avg_reward_alpha": 0.1,
     "critic_alpha": 0.9,
-    "actor_alpha": 0.7
+    "actor_alpha": 0.7,
+    "tile_coder_config": {
+        'num_tilings': 1,
+        'ranges': [EMG_MAG_RANGE, EMG_ANGLE_RANGE],
+        'bins_per_dim': BIN_COUNTS,  
+        'use_hashing': False
+}
 }
 reward_next = 0.0   # Initialize reward for first loop (no action taken yet)
 
@@ -124,8 +130,8 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm, MyoAr
             print(f"EMG Phasor Magnitude: {emg_mag:.2f}, Angle: {emg_angle:.2f} degrees")
 
             # Create feature vector X:
-            x_next, flat_index, bin_indices = featurize_grid([emg_mag, emg_angle], RANGES, BIN_COUNTS)     
-            print(f"Feature index: {flat_index}, Bin Indices: {bin_indices}")
+            # x_next, flat_index, bin_indices = featurize_grid([emg_mag, emg_angle], RANGES, BIN_COUNTS)     
+            # print(f"Feature index: {flat_index}, Bin Indices: {bin_indices}")
 
             # Update learner with reward from previous action (after first action)
             if learner.last_action is not None:
@@ -134,7 +140,7 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm, MyoAr
                     reward_next = 1.0 if match else -1.0
                 else:
                     reward_next = 0.0
-                learner.update(reward_next, x_next, learning_enabled=learning)
+                learner.update(reward_next, [emg_mag, emg_angle], learning_enabled=learning)
 
             # Get next action from learner and take action on robot
             action = learner.get_next_action()
@@ -148,7 +154,7 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm, MyoAr
             # Update Visualizer
             viz.update_data(active_key, emg_mag, emg_angle, reward_next, 
                             learner.avg_reward, learner.softmax_probs, learner.last_action,
-                            feature_index=flat_index)
+                            feature_index=learner.cur_active_indices[0] if learner.cur_active_indices is not None else None)
             viz.draw()
         
             # Small sleep 

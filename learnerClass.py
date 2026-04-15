@@ -6,7 +6,9 @@ March 2026
 
 import math
 import numpy as np
+from tileCoderClass import TileCoder
 from helperFunctions import compute_softmax_prob, get_softmax_action
+
 
 class ACLearner_Discrete:
     def __init__(self, agent_dict = {}):
@@ -18,50 +20,55 @@ class ACLearner_Discrete:
             "avg_reward_alpha": float,
             "num_actions": int,
             "feature_vector_length": int,
+            "tile_coder_config": dict 
+            "initial_avg_reward": float or None (default 0.0),
             "initial_actor_w": float or None (default 0.0),
             "initial_critic_w": float or None (default 0.0),
-            "initial_avg_reward": float or None (default 0.0),
         }
         """
         # Set parameters from agent_dict
-        self.actor_alpha = agent_dict.get("actor_alpha")
-        self.critic_alpha = agent_dict.get("critic_alpha")
+        tile_coder_config = agent_dict.get("tile_coder_config")
+        self.actor_alpha = agent_dict.get("actor_alpha")/tile_coder_config['num_tilings']  # Divide alpha by num_tilings to account for multiple updates per step
+        self.critic_alpha = agent_dict.get("critic_alpha")/tile_coder_config['num_tilings']  # Divide alpha by num_tilings to account for multiple updates per step
         self.avg_reward_alpha = agent_dict.get("avg_reward_alpha")
         self.num_actions = agent_dict.get("num_actions")
+        self.avg_reward = agent_dict.get("initial_avg_reward", 0.0)
         feature_vector_length = agent_dict.get("feature_vector_length")
         initial_actor_w = agent_dict.get("initial_actor_w", 0.0)
         initial_critic_w = agent_dict.get("initial_critic_w", 0.0)
-        self.avg_reward = agent_dict.get("initial_avg_reward", 0.0)
+        
 
         # Initialize things
-        self.x_cur = np.zeros(feature_vector_length, dtype=int) 
         self.actor_w = np.full((feature_vector_length, self.num_actions), initial_actor_w)
         self.critic_w = np.full(feature_vector_length, initial_critic_w)
+        self.cur_active_indices = None
         self.last_action = None 
         self.softmax_probs = compute_softmax_prob(self.actor_w, self.x_cur)
-    
+        self.tc = TileCoder(tile_coder_config)
+
     # Update weights 
-    def update(self, reward_next, x_next, learning_enabled = True):
+    def update(self, reward_next, state, learning_enabled = True):
+        next_active_indices = self.tc.get_indices(state)
         if not learning_enabled:
-            self.x_cur = x_next
+            self.cur_active_indices = next_active_indices
             return
         # Calculate TD error: delta = reward_next - avg_reward + critic_w*x_next - critic_w*x_cur
-        delta = reward_next - self.avg_reward + (self.critic_w @ x_next) - (self.critic_w @ self.x_cur)
+        delta = reward_next - self.avg_reward + self.critic_w[next_active_indices].sum() - self.critic_w[self.cur_active_indices].sum()
         # Update average reward: avg_reward = avg_reward + avg_reward_alpha * delta
         self.avg_reward += self.avg_reward_alpha * delta
         # Update critic weights: critic_w = critic_w + critic_alpha * delta * x_cur
-        self.critic_w += self.critic_alpha * delta * self.x_cur
+        self.critic_w[self.cur_active_indices] += self.critic_alpha * delta 
         # Update actor weights: actor_w = actor_w + actor_alpha * delta * (x_h - softmax_probs))
-        x_h = x_h = np.eye(self.num_actions)[self.last_action]  # First construct x_h(s,a) - all zereos except for index corresponding to last action taken
-        self.actor_w += self.actor_alpha * delta * (x_h - self.softmax_probs) * self.x_cur[:, np.newaxis]  # Use broadcasting to update only the column corresponding to last state
-        # Update x_cur 
-        self.x_cur = x_next
+        x_h = np.eye(self.num_actions)[self.last_action]  # First construct x_h(s,a) - all zereos except for index corresponding to last action taken
+        self.actor_w[self.cur_active_indices, :] += self.actor_alpha * delta * (x_h - self.softmax_probs)
+        # Update current
+        self.cur_active_indices = next_active_indices
         return
     
     # Get action to take in current state
     def get_next_action(self):
         # Calculate softmax probabilities for current state: softmax_probs = compute_softmax_prob(actor_w, x_cur)
-        self.softmax_probs = compute_softmax_prob(self.actor_w, self.x_cur)
+        self.softmax_probs = compute_softmax_prob(self.actor_w, self.cur_active_indices)
         # Select action based on softmax probabilities: action = get_softmax_action(softmax_probs)
         action = get_softmax_action(self.softmax_probs)
         # Store last action taken (for use in update step)

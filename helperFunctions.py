@@ -15,12 +15,12 @@ from pynput import keyboard
 
 # --- Function Definitions ----------------------------------------------------------------
 # Softmax probability:
-def compute_softmax_prob(actor_w, state_x):
+def compute_softmax_prob(actor_w, active_indices):
     # Input: actor_w is a 2D array of shape (feature_vector_length, num_actions)
-    #        state_x is a 1D array of shape (feature_vector_length)
+    #        active_indices is a list of indices representing the active features
     # Output: a 1D array of shape (num_actions) representing the softmax probabilities of each action
     # Compute the preferences for each action in the current state:
-    preferences = state_x @ actor_w  
+    preferences = actor_w[active_indices, :].sum(axis=0)
     # Calculate constant c for numerical stability (max of preferences):
     c = np.max(preferences)
     # Calculate the softmax probabilities:
@@ -67,10 +67,10 @@ def to_signed_16(val):
 
 # Normalize function
 def normalize(value, min_val, max_val):
-    if value < min_val:
-        value = min_val
-    if value > max_val:
-        value = max_val
+    value = np.array(value)
+    min_val = np.array(min_val)
+    max_val = np.array(max_val)
+    np.clip(value, min_val, max_val, out=value)
     return (value - min_val) / (max_val - min_val)
 
 # Binning function - expects normalized value between 0 and 1
