@@ -19,7 +19,6 @@ class ACLearner_Discrete:
             "critic_alpha": float,
             "avg_reward_alpha": float,
             "num_actions": int,
-            "feature_vector_length": int,
             "tile_coder_config": dict 
             "initial_avg_reward": float or None (default 0.0),
             "initial_actor_w": float or None (default 0.0),
@@ -33,18 +32,18 @@ class ACLearner_Discrete:
         self.avg_reward_alpha = agent_dict.get("avg_reward_alpha")
         self.num_actions = agent_dict.get("num_actions")
         self.avg_reward = agent_dict.get("initial_avg_reward", 0.0)
-        feature_vector_length = agent_dict.get("feature_vector_length")
         initial_actor_w = agent_dict.get("initial_actor_w", 0.0)
         initial_critic_w = agent_dict.get("initial_critic_w", 0.0)
         
 
         # Initialize things
-        self.actor_w = np.full((feature_vector_length, self.num_actions), initial_actor_w)
-        self.critic_w = np.full(feature_vector_length, initial_critic_w)
-        self.cur_active_indices = None
-        self.last_action = None 
-        self.softmax_probs = compute_softmax_prob(self.actor_w, self.x_cur)
         self.tc = TileCoder(tile_coder_config)
+        self.actor_w = np.full((self.tc.total_size, self.num_actions), initial_actor_w)
+        self.critic_w = np.full((self.tc.total_size,), initial_critic_w)
+        self.cur_active_indices = []
+        self.last_action = None 
+        self.softmax_probs = compute_softmax_prob(self.actor_w, self.cur_active_indices)
+        
 
     # Update weights 
     def update(self, reward_next, state, learning_enabled = True):

@@ -23,11 +23,11 @@ calibration_steps = [
     ("Internally rotate shoulder to comfortable limit", "int_rot", 0, "shoulder"),
     ("Externally rotate shoulder to comfortable limit", "ext_rot", 0, "shoulder"),
     ("Extend your elbow to comfortable limit",          "ext",     2, "elbow"),
-    ("Flex your elbow to comfortable limit",            "flex",    2, "elbow"),
+    ("Flex your elbow to comfortable limit",            "flex",        2, "elbow"),
 ]
 
 # Robot arm:
-COMM_PORT = 'COM13'     # Lab Mini Bento likes port 13, home likes 15
+COMM_PORT = 'COM15'     # Lab Mini Bento likes port 13, home likes 15
 BAUDRATE = 1000000
 MOTOR_VELO = 20
 INITIAL_POSITIONS = {1: 2048, 2: 1800, 4: 2700, 5: 2780}
@@ -46,13 +46,12 @@ NUM_MAG_BINS = 3        # Number of bins for EMG phasor magnitude
 NUM_PHASOR_BINS = 8     # Number of bins for EMG phasor angle
 BIN_COUNTS = [NUM_MAG_BINS, NUM_PHASOR_BINS]  # For featurization
 agent_params = {
-    "feature_vector_length": np.prod(BIN_COUNTS),
     "num_actions": 3,   # close [0], rest [1], or open [2]
     "avg_reward_alpha": 0.1,
     "critic_alpha": 0.9,
     "actor_alpha": 0.7,
     "tile_coder_config": {
-        'num_tilings': 1,
+        'num_tilings': 10,
         'ranges': [EMG_MAG_RANGE, EMG_ANGLE_RANGE],
         'bins_per_dim': BIN_COUNTS,  
         'use_hashing': False
@@ -154,7 +153,7 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm, MyoAr
             # Update Visualizer
             viz.update_data(active_key, emg_mag, emg_angle, reward_next, 
                             learner.avg_reward, learner.softmax_probs, learner.last_action,
-                            feature_index=learner.cur_active_indices[0] if learner.cur_active_indices is not None else None)
+                            feature_index=learner.cur_active_indices[0] if learner.cur_active_indices else None)
             viz.draw()
         
             # Small sleep 
