@@ -24,7 +24,7 @@ imu_cal_angles = {
 }
 
 # Robot arm:
-COMM_PORT = 'COM13'     # Lab Mini Bento likes port 13, home likes 15
+COMM_PORT = 'COM15'     # Lab Mini Bento likes port 13, home likes 15
 BAUDRATE = 1000000
 MOTOR_VELO = 20
 INITIAL_POSITIONS = {1: 2048, 2: 1800, 4: 2700, 5: 2780}

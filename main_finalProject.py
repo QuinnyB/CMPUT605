@@ -1,5 +1,5 @@
 '''
-Main code for CMPUT 605 Final Project Interim Report 1
+Main code for CMPUT 605 Final Project
 Exploration of ACRL for Myoelectric Control of a 3D Printed Robot Arm
 Written by: Quinn Boser, with assistance from Google Gemini
 April 2026
@@ -14,8 +14,11 @@ from keyboardHandlerClass import KeyPressHandler
 from helperFunctions import *
 
 # --- Configuration -----------------------------------------------------------------------------
+# General:
+IMU_CTRL_ON = True         # Whether to use IMU for controlling shoulder and elbow (True) or just use EMG for hand control (False)
+
 # Myo Armband:
-EMG_MAV_WINDOW = 40        # Window size for moving average of EMG signals (in number of samples)
+EMG_MAV_WINDOW = 40        # Window size for moving average of EMG signals (in number of samples)r     
 IMU_MAV_WINDOW = 10        # Window size for moving average of IMU signals (in number of samples)
 # Calibration steps: Instruction, dictionary_key, angle_index, joint_label
 # For each joint, first step should be expected to correspond to smaller encoder value for motor
@@ -23,7 +26,7 @@ calibration_steps = [
     ("Internally rotate shoulder to comfortable limit", "int_rot", 0, "shoulder"),
     ("Externally rotate shoulder to comfortable limit", "ext_rot", 0, "shoulder"),
     ("Extend your elbow to comfortable limit",          "ext",     2, "elbow"),
-    ("Flex your elbow to comfortable limit",            "flex",        2, "elbow"),
+    ("Flex your elbow to comfortable limit",            "flex",    2, "elbow"),
 ]
 
 # Robot arm:
@@ -39,23 +42,22 @@ HAND_ID = 5                 # Hand motor ID
 HAND_LIMS = [1750, 2650]    # Hand motor limits (encoder values [Open Close])
 
 # Learning:
-EMG_MAG_RANGE = (0, 100)   # Expected range of EMG phasor magnitude (for featurization)
-EMG_ANGLE_RANGE = (-180, 180)  # Expected range of EMG phasor angle (for featurization)
-RANGES = [EMG_MAG_RANGE, EMG_ANGLE_RANGE]  # For featurization
+EMG_MAG_RANGE = [0, 100]   # Expected range of EMG phasor magnitude (for featurization)
+EMG_ANGLE_RANGE = [-180, 180]  # Expected range of EMG phasor angle (for featurization)
 NUM_MAG_BINS = 3        # Number of bins for EMG phasor magnitude
 NUM_PHASOR_BINS = 8     # Number of bins for EMG phasor angle
-BIN_COUNTS = [NUM_MAG_BINS, NUM_PHASOR_BINS]  # For featurization
+NUM_SHO_BINS = 3        # Number of bins for shoulder position
 agent_params = {
     "num_actions": 3,   # close [0], rest [1], or open [2]
-    "avg_reward_alpha": 0.1,
+    "avg_reward_alpha": 0.05,
     "critic_alpha": 0.9,
     "actor_alpha": 0.7,
     "tile_coder_config": {
-        'num_tilings': 10,
-        'ranges': [EMG_MAG_RANGE, EMG_ANGLE_RANGE],
-        'bins_per_dim': BIN_COUNTS,  
+        'num_tilings': 1,
+        'ranges': [EMG_MAG_RANGE, EMG_ANGLE_RANGE, SHO_LIMS],
+        'bins_per_dim': [NUM_MAG_BINS, NUM_PHASOR_BINS, NUM_SHO_BINS],  
         'use_hashing': False
-}
+    }
 }
 reward_next = 0.0   # Initialize reward for first loop (no action taken yet)
 
@@ -78,7 +80,8 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm, MyoAr
     key_handler = KeyPressHandler(arm, HAND_ID)
 
     # Run Calibration process for IMU control of shoulder and elbow
-    imu_cal_angles, joint_mults = myo.run_interactive_calibration(key_handler, calibration_steps)
+    if IMU_CTRL_ON:
+        imu_cal_angles, joint_mults = myo.run_interactive_calibration(key_handler, calibration_steps)
 
     # Setup ACRL learner and visualizer
     learner = ACLearner_Discrete(agent_params)
@@ -88,7 +91,7 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm, MyoAr
     try:
         while viz.is_open():
             # Check for re-calibration request
-            if hasattr(key_handler, 'recalibrate_requested') and key_handler.recalibrate_requested:
+            if IMU_CTRL_ON and hasattr(key_handler, 'recalibrate_requested') and key_handler.recalibrate_requested:
                 # Return robot to initial positions before re-calibration
                 arm.return_to_initial_positions()
                 # Re-run calibration process
@@ -106,15 +109,16 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm, MyoAr
             emg_mav, angles, _, _, _ = myo.get_data()
 
             # Set Mini Bento shoulder and elbow position based on IMU angles
-            target_s = np.interp(joint_mults["shoulder"] * angles[0], 
-                             [imu_cal_angles["int_rot"], imu_cal_angles["ext_rot"]], 
-                             SHO_LIMS)
-            target_e = np.interp(joint_mults["elbow"] * angles[2], 
-                             [imu_cal_angles["ext"], imu_cal_angles["flex"]], 
-                             ELB_LIMS)
-            print(f"Target SHO: {target_s:.0f}, Target ELB: {target_e:.0f}")
-            arm.set_goal_pos(SHO_ID, int(target_s))
-            arm.set_goal_pos(ELB_ID, int(target_e))
+            if IMU_CTRL_ON:
+                target_s = np.interp(joint_mults["shoulder"] * angles[0], 
+                            [imu_cal_angles["int_rot"], imu_cal_angles["ext_rot"]], 
+                            SHO_LIMS)
+                target_e = np.interp(joint_mults["elbow"] * angles[2], 
+                            [imu_cal_angles["ext"], imu_cal_angles["flex"]], 
+                            ELB_LIMS)
+                print(f"Target SHO: {target_s:.0f}, Target ELB: {target_e:.0f}")
+                arm.set_goal_pos(SHO_ID, int(target_s))
+                arm.set_goal_pos(ELB_ID, int(target_e))
 
             # Get active keyboard key ('a', 's', 'd', or None)
             active_key = key_handler.get_key()
@@ -126,11 +130,7 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm, MyoAr
 
             # Compute phasor representation of EMG MAV
             emg_mag, emg_angle = get_phasor(emg_mav)
-            print(f"EMG Phasor Magnitude: {emg_mag:.2f}, Angle: {emg_angle:.2f} degrees")
-
-            # Create feature vector X:
-            # x_next, flat_index, bin_indices = featurize_grid([emg_mag, emg_angle], RANGES, BIN_COUNTS)     
-            # print(f"Feature index: {flat_index}, Bin Indices: {bin_indices}")
+            # print(f"EMG Phasor Magnitude: {emg_mag:.2f}, Angle: {emg_angle:.2f} degrees")
 
             # Update learner with reward from previous action (after first action)
             if learner.last_action is not None:
@@ -139,7 +139,8 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm, MyoAr
                     reward_next = 1.0 if match else -1.0
                 else:
                     reward_next = 0.0
-                learner.update(reward_next, [emg_mag, emg_angle], learning_enabled=learning)
+                state = [emg_mag, emg_angle, target_s if IMU_CTRL_ON else 2000] # Include shoulder position in state if using IMU control
+                learner.update(reward_next, state, learning_enabled=learning)
 
             # Get next action from learner and take action on robot
             action = learner.get_next_action()
@@ -151,13 +152,18 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm, MyoAr
                 arm.set_goal_pos(HAND_ID, HAND_LIMS[1])
         
             # Update Visualizer
+            if learner.cur_active_indices:
+                base_indices = [idx % learner.tc.tiles_per_tiling for idx in learner.cur_active_indices]
+                refined_id = np.mean(base_indices)
+            else:
+                refined_id = None
             viz.update_data(active_key, emg_mag, emg_angle, reward_next, 
                             learner.avg_reward, learner.softmax_probs, learner.last_action,
-                            feature_index=learner.cur_active_indices[0] if learner.cur_active_indices else None)
+                            feature_index=refined_id)
             viz.draw()
         
             # Small sleep 
-            time.sleep(0.1)
+            time.sleep(0.2)
 
     except KeyboardInterrupt:
         print("Experiment stopped.")

@@ -39,6 +39,7 @@ class TileCoder:
 
     def get_indices(self, state):
         norm_state = normalize(state, self.low, self.high)
+        # print(f"Normalized state: {norm_state}")
         indices = []
         
         for i in range(self.num_tilings):
@@ -49,13 +50,13 @@ class TileCoder:
             coords = scaled_state.astype(int)
             # 4. Bound check (prevent index out of bounds at exactly 1.0)
             coords = np.minimum(coords, self.bins_per_dim - 1)
-            print(f"Tiling {i}: Scaled State={scaled_state}, Coords={coords}")
+            # print(f"Tiling {i}: Scaled State={scaled_state}, Coords={coords}")
         
             if self.use_hashing:
                 idx = hash(tuple(coords) + (i,)) % self.hash_size
             else:
                 flat_coords = np.ravel_multi_index(coords, self.bins_per_dim)
-                print(f"Tiling {i}: Flat Coords={flat_coords}")
+                # print(f"Tiling {i}: Flat Coords={flat_coords}")
                 idx = (i * self.tiles_per_tiling) + flat_coords
             
             indices.append(int(idx))
