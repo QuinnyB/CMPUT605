@@ -18,11 +18,12 @@ class TileCoder:
         self.low = np.array([r[0] for r in coder_dict['ranges']])
         self.high = np.array([r[1] for r in coder_dict['ranges']])
         self.bins_per_dim = np.array(coder_dict['bins_per_dim'])
+        self.num_dims = len(self.bins_per_dim)
+        self.wrap_dims = coder_dict.get('wrap_dims', [False] * self.num_dims)
         self.use_hashing = coder_dict.get('use_hashing', False) # Default to False if missing
         self.hash_size = coder_dict.get('hash_size', 4096) 
 
         # Calculate derived parameters
-        self.num_dims = len(self.bins_per_dim)
         self.tiles_per_tiling = np.prod(self.bins_per_dim)
         if self.use_hashing:
             self.total_size = self.hash_size
@@ -43,15 +44,24 @@ class TileCoder:
         indices = []
         
         for i in range(self.num_tilings):
-            # 1. Scale the [0,1] state to the number of bins
-            # 2. Add the fractional offset for this tiling
-            # 3. Floor to get the integer coordinate
+            # Scale the [0,1] state to the number of bins
+            # Add the fractional offset for this tiling
             scaled_state = (norm_state * self.bins_per_dim) + self.offsets[i]
-            coords = scaled_state.astype(int)
-            # 4. Bound check (prevent index out of bounds at exactly 1.0)
-            coords = np.minimum(coords, self.bins_per_dim - 1)
-            # print(f"Tiling {i}: Scaled State={scaled_state}, Coords={coords}")
+            
+            # Initialize an empty array for the processed coordinates
+            coords = np.zeros(self.num_dims, dtype=int)
         
+            for d in range(self.num_dims):
+                # Floor to integer
+                val = int(np.floor(scaled_state[d]))
+            
+                if self.wrap_dims[d]:
+                    # Periodic: wrap around using modulo
+                    coords[d] = val % self.bins_per_dim[d]
+                else:
+                    # Bounded: clamp between 0 and bins-1
+                    coords[d] = np.clip(val, 0, self.bins_per_dim[d] - 1)
+                
             if self.use_hashing:
                 idx = hash(tuple(coords) + (i,)) % self.hash_size
             else:
@@ -60,5 +70,5 @@ class TileCoder:
                 idx = (i * self.tiles_per_tiling) + flat_coords
             
             indices.append(int(idx))
-        
+
         return indices

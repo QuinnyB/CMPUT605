@@ -1,6 +1,7 @@
 '''
 Main code for CMPUT 605 Final Project
 Exploration of ACRL for Myoelectric Control of a 3D Printed Robot Arm
+Explorations 1, 2, and 4
 Written by: Quinn Boser, with assistance from Google Gemini
 April 2026
 '''
@@ -45,17 +46,18 @@ HAND_LIMS = [1750, 2650]    # Hand motor limits (encoder values [Open Close])
 EMG_MAG_RANGE = [0, 100]   # Expected range of EMG phasor magnitude (for featurization)
 EMG_ANGLE_RANGE = [-180, 180]  # Expected range of EMG phasor angle (for featurization)
 NUM_MAG_BINS = 3        # Number of bins for EMG phasor magnitude
-NUM_PHASOR_BINS = 8     # Number of bins for EMG phasor angle
-NUM_SHO_BINS = 3        # Number of bins for shoulder position
+NUM_ANGLE_BINS = 8     # Number of bins for EMG phasor angle
 agent_params = {
     "num_actions": 3,   # close [0], rest [1], or open [2]
-    "avg_reward_alpha": 0.05,
+    "avg_reward_alpha": 0.1,
     "critic_alpha": 0.9,
     "actor_alpha": 0.7,
+    "unlearn_rate": 0.05, 
     "tile_coder_config": {
-        'num_tilings': 1,
-        'ranges': [EMG_MAG_RANGE, EMG_ANGLE_RANGE, SHO_LIMS],
-        'bins_per_dim': [NUM_MAG_BINS, NUM_PHASOR_BINS, NUM_SHO_BINS],  
+        'num_tilings': 8,
+        'ranges': [EMG_MAG_RANGE, EMG_ANGLE_RANGE],
+        'bins_per_dim': [NUM_MAG_BINS, NUM_ANGLE_BINS], 
+        'wrap_dims': [False, True],
         'use_hashing': False
     }
 }
@@ -139,7 +141,8 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm, MyoAr
                     reward_next = 1.0 if match else -1.0
                 else:
                     reward_next = 0.0
-                state = [emg_mag, emg_angle, target_s if IMU_CTRL_ON else 2000] # Include shoulder position in state if using IMU control
+                state = [emg_mag, emg_angle]
+                # state = [emg_mag, emg_angle, target_s if IMU_CTRL_ON else 2000]
                 learner.update(reward_next, state, learning_enabled=learning)
 
             # Get next action from learner and take action on robot
@@ -163,7 +166,7 @@ with MiniBento(COMM_PORT, BAUDRATE, MOTOR_VELO, INITIAL_POSITIONS) as arm, MyoAr
             viz.draw()
         
             # Small sleep 
-            time.sleep(0.2)
+            time.sleep(0.05)
 
     except KeyboardInterrupt:
         print("Experiment stopped.")

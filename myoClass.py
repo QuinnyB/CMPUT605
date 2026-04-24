@@ -114,7 +114,7 @@ class MyoArmband:
 
         # Step 1: Neutral
         print("\n" + "="*50 + "\nIMU CALIBRATION\n" + "="*50)
-        print("\n" + "="*50 + "\nSTEP 1: Hold your arm in 'Neutral' position and press SPACEBAR.\n" + "="*50)
+        print("\n" + "="*50 + "\nSTEP 1: Put the Myo on your RIGHT arm. Hold your arm in 'Neutral' position and press SPACEBAR.\n" + "="*50)
         key_handler.reset_space()
         while not key_handler.space_pressed: time.sleep(0.1)
         self.calibrate_imu()

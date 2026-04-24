@@ -34,7 +34,7 @@ class KeyPressHandler:
             if k == 'r':
                 self.recalibrate_requested = True 
             # a/s/d keys to indicate intended action for learner
-            elif k in ['a', 's', 'd']:
+            elif k in ['a', 's', 'd', 'w', 'x']:
                 self.current_key = k       
         except AttributeError:
             # Handles special keys (like Shift/Ctrl) that don't have .char

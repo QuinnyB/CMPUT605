@@ -19,6 +19,7 @@ class ACLearner_Discrete:
             "critic_alpha": float,
             "avg_reward_alpha": float,
             "num_actions": int,
+            'unlearn_rate': float (optional, default 0.0, meaning no unlearning),
             "tile_coder_config": dict 
             "initial_avg_reward": float or None (default 0.0),
             "initial_actor_w": float or None (default 0.0),
@@ -29,6 +30,7 @@ class ACLearner_Discrete:
         tile_coder_config = agent_dict.get("tile_coder_config")
         self.actor_alpha = agent_dict.get("actor_alpha")/tile_coder_config['num_tilings']  # Divide alpha by num_tilings to account for multiple updates per step
         self.critic_alpha = agent_dict.get("critic_alpha")/tile_coder_config['num_tilings']  # Divide alpha by num_tilings to account for multiple updates per step
+        self.unlearn_rate = agent_dict.get("unlearn_rate", 0.0)
         self.avg_reward_alpha = agent_dict.get("avg_reward_alpha")
         self.num_actions = agent_dict.get("num_actions")
         self.avg_reward = agent_dict.get("initial_avg_reward", 0.0)
@@ -60,7 +62,10 @@ class ACLearner_Discrete:
         # Update actor weights: actor_w = actor_w + actor_alpha * delta * (x_h - softmax_probs))
         x_h = np.eye(self.num_actions)[self.last_action]  # First construct x_h(s,a) - all zereos except for index corresponding to last action taken
         self.actor_w[self.cur_active_indices, :] += self.actor_alpha * delta * (x_h - self.softmax_probs)
-        # Update current
+        # Unlearning step: if reward_next < 0, decay the weights for the current state-action pair towards zero
+        if reward_next < 0 and self.unlearn_rate != 0.0:
+            self.actor_w[self.cur_active_indices, :] *= (1 - self.unlearn_rate)
+        # Update current active indices 
         self.cur_active_indices = next_active_indices
         return
     
